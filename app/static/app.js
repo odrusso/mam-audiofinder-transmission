@@ -7,6 +7,20 @@ const statusEl = document.getElementById('status');
 const table = document.getElementById('results');
 const tbody = table.querySelector('tbody');
 const showHistoryBtn = document.getElementById('showHistoryBtn');
+const historyCard = document.getElementById('historyCard');
+const historyTable = document.getElementById('history');
+const historyBody = historyTable.querySelector('tbody');
+const historyColumnCount = historyTable.querySelector('thead tr').children.length;
+
+let cachedTorrents = null;
+let cachedTorrentsPromise = null;
+let activeImportHistoryId = null;
+
+const importRow = document.createElement('tr');
+importRow.style.display = 'none';
+const importCell = document.createElement('td');
+importCell.colSpan = historyColumnCount;
+importRow.appendChild(importCell);
 
 // Focus the search box
 if (q) q.focus();
@@ -25,10 +39,9 @@ if (q) q.focus();
 // ---------- Show History (even without searching) ----------
 if (showHistoryBtn) {
   showHistoryBtn.addEventListener('click', async () => {
-    const card = document.getElementById('historyCard');
-    card.style.display = '';           // reveal card
-    await loadHistory();               // populate
-    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    historyCard.style.display = '';
+    await loadHistory();
+    historyCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 
@@ -43,21 +56,19 @@ if (form) {
 // ---------- Search flow ----------
 async function runSearch() {
   const text = (q?.value || '').trim();
-  const sortType = (sortSel?.value) || 'default';
+  const sortType = sortSel?.value || 'default';
   const perpage = parseInt(perpageSel?.value || '25', 10);
 
-  statusEl.textContent = 'Searching…';
+  statusEl.textContent = 'Searching...';
   table.style.display = 'none';
   tbody.innerHTML = '';
 
   try {
-    const resp = await fetch('/search', {
+    const data = await fetchJson('/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tor: { text, sortType }, perpage })
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
 
     const rows = data.results || [];
     if (!rows.length) {
@@ -67,18 +78,15 @@ async function runSearch() {
 
     rows.forEach((it) => {
       const tr = document.createElement('tr');
-      const sl = `${it.seeders ?? '-'} / ${it.leechers ?? '-'}`;
-
-      // Add-to-Transmission button
+      const detailsURL = it.id ? `https://www.myanonamouse.net/t/${encodeURIComponent(it.id)}` : '';
       const addBtn = document.createElement('button');
       addBtn.textContent = 'Add';
-      // enable if we have a direct dl hash OR at least an id
       addBtn.disabled = !(it.dl || it.id);
       addBtn.addEventListener('click', async () => {
         addBtn.disabled = true;
-        addBtn.textContent = 'Adding…';
+        addBtn.textContent = 'Adding...';
         try {
-          const resp = await fetch('/add', {
+          await fetchJson('/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -89,14 +97,8 @@ async function runSearch() {
               narrator: it.narrator_info || ''
             })
           });
-          if (!resp.ok) {
-            let msg = `HTTP ${resp.status}`;
-            try {
-              const j = await resp.json();
-              if (j?.detail) msg += ` — ${j.detail}`;
-            } catch {}
-            throw new Error(msg);
-          }
+          cachedTorrents = null;
+          cachedTorrentsPromise = null;
           addBtn.textContent = 'Added';
           await loadHistory();
         } catch (e) {
@@ -106,22 +108,20 @@ async function runSearch() {
         }
       });
 
-      // Torrent details link on MAM
-      const detailsURL = it.id ? `https://www.myanonamouse.net/t/${encodeURIComponent(it.id)}` : '';
-
       tr.innerHTML = `
         <td>${escapeHtml(it.title || '')}</td>
         <td>${escapeHtml(it.author_info || '')}</td>
         <td>${escapeHtml(it.narrator_info || '')}</td>
         <td>${escapeHtml(it.format || '')}</td>
         <td class="right">${formatSize(it.size)}</td>
-        <td class="right">${sl}</td>
+        <td class="right">${escapeHtml(`${it.seeders ?? '-'} / ${it.leechers ?? '-'}`)}</td>
         <td>${escapeHtml(it.added || '')}</td>
         <td class="center">
           ${detailsURL ? `<a href="${detailsURL}" target="_blank" rel="noopener noreferrer" title="Open on MAM">🔗</a>` : ''}
         </td>
         <td></td>
       `;
+
       tr.lastElementChild.appendChild(addBtn);
       tbody.appendChild(tr);
     });
@@ -147,191 +147,218 @@ function formatSize(sz) {
   if (sz == null || sz === '') return '';
   const n = Number(sz);
   if (!Number.isFinite(n)) return String(sz);
-  const units = ['B','KB','MB','GB','TB'];
-  let i = 0, x = n;
-  while (x >= 1024 && i < units.length - 1) { x /= 1024; i++; }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  let x = n;
+  while (x >= 1024 && i < units.length - 1) {
+    x /= 1024;
+    i += 1;
+  }
   return `${x.toFixed(1)} ${units[i]}`;
 }
 
-async function loadHistory() {
+async function fetchJson(url, options) {
+  const resp = await fetch(url, options);
+  if (resp.ok) return resp.json();
+
+  let msg = `HTTP ${resp.status}`;
   try {
-    const r = await fetch('/history');
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const j = await r.json();
+    const j = await resp.json();
+    if (j?.detail) msg += ` - ${j.detail}`;
+  } catch {}
+  throw new Error(msg);
+}
 
-    const card = document.getElementById('historyCard');
-    const hist = document.getElementById('history');
-    const htbody = hist.querySelector('tbody');
-    htbody.innerHTML = '';
+function renderEmptyHistory() {
+  const tr = document.createElement('tr');
+  tr.className = 'empty';
+  tr.innerHTML = `<td colspan="${historyColumnCount}" class="center muted">No items in history yet.</td>`;
+  historyBody.appendChild(tr);
+}
 
-    const items = j.items || [];
+function closeImportPanel() {
+  activeImportHistoryId = null;
+  importRow.style.display = 'none';
+  importCell.innerHTML = '';
+  if (importRow.parentNode) {
+    importRow.parentNode.removeChild(importRow);
+  }
+}
 
-    if (!items.length) {
-      // show empty state row instead of hiding the card
-      const colSpan = hist.querySelector('thead tr').children.length;
-      const tr = document.createElement('tr');
-      tr.className = 'empty';
-      tr.innerHTML = `<td colspan="${colSpan}" class="center muted">No items in history yet.</td>`;
-      htbody.appendChild(tr);
-      card.style.display = ''; // keep the card visible
-      return;
-    }
+async function getCompletedTorrents(forceReload = false) {
+  if (forceReload) {
+    cachedTorrents = null;
+    cachedTorrentsPromise = null;
+  }
+  if (cachedTorrents) return cachedTorrents;
+  if (!cachedTorrentsPromise) {
+    cachedTorrentsPromise = fetchJson('/transmission/torrents').then((j) => {
+      cachedTorrents = j.items || [];
+      return cachedTorrents;
+    }).catch((err) => {
+      cachedTorrentsPromise = null;
+      throw err;
+    });
+  }
+  return cachedTorrentsPromise;
+}
 
-    items.forEach((h) => {
-      const tr = document.createElement('tr');
-      const when = h.added_at ? new Date(h.added_at.replace(' ', 'T') + 'Z').toLocaleString() : '';
-      const linkURL = h.mam_id ? `https://www.myanonamouse.net/t/${encodeURIComponent(h.mam_id)}` : '';
-
-      // buttons
-      const importBtn = document.createElement('button');
-      importBtn.textContent = 'Import';
-      const rmBtn = document.createElement('button');
-      rmBtn.textContent = 'Remove';
-      rmBtn.addEventListener('click', async () => {
-        rmBtn.disabled = true;
-        try {
-          const resp = await fetch(`/history/${encodeURIComponent(h.id)}`, { method: 'DELETE' });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          tr.remove();
-          // if we just removed the last row, render the empty state
-          if (!htbody.children.length) {
-            const colSpan = hist.querySelector('thead tr').children.length;
-            const emptyTr = document.createElement('tr');
-            emptyTr.className = 'empty';
-            emptyTr.innerHTML = `<td colspan="${colSpan}" class="center muted">No items in history yet.</td>`;
-            htbody.appendChild(emptyTr);
-          }
-        } catch (e) {
-          console.error('remove failed', e);
-          rmBtn.disabled = false;
-        }
-      });
-
-      tr.innerHTML = `
-        <td>${escapeHtml(h.title || '')}</td>
-        <td>${escapeHtml(h.author || '')}</td>
-        <td>${escapeHtml(h.narrator || '')}</td>
-        <td class="center">${linkURL ? `<a href="${linkURL}" target="_blank" rel="noopener noreferrer" title="Open on MAM">🔗</a>` : ''}</td>
-        <td>${escapeHtml(when)}</td>
-        <td>${escapeHtml(h.torrent_status || '')}</td>
-        <td></td>   <!-- Import -->
-        <td></td>   <!-- Remove -->
-      `;
-      tr.children[tr.children.length - 2].appendChild(importBtn);
-      tr.lastElementChild.appendChild(rmBtn);
-      htbody.appendChild(tr);
-
-// expander row (initially hidden)
-const exp = document.createElement('tr');
-exp.style.display = 'none';
-const expTd = document.createElement('td');
-expTd.colSpan = hist.querySelector('thead tr').children.length; // match column count
-exp.appendChild(expTd);
-htbody.appendChild(exp);
-
-importBtn.addEventListener('click', async () => {
-  // toggle open/close
-  if (exp.style.display === '') {
-    exp.style.display = 'none';
-    expTd.innerHTML = '';
+async function openImportPanel(historyItem, row) {
+  if (activeImportHistoryId === historyItem.id) {
+    closeImportPanel();
     return;
   }
-  exp.style.display = '';
-  expTd.innerHTML = `
+
+  activeImportHistoryId = historyItem.id;
+  importCell.innerHTML = `
     <div class="import-form" style="padding:8px;border:1px solid #ddd;border-radius:8px;margin:6px 0;">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <span>Import:</span>
         <span>/</span>
-        <input type="text" class="imp-author" placeholder="Author" value="${escapeHtml(h.author || '')}" style="min-width:220px;">
+        <input type="text" class="imp-author" placeholder="Author" value="${escapeHtml(historyItem.author || '')}" style="min-width:220px;">
         <span>/</span>
-        <input type="text" class="imp-title" placeholder="Title" value="${escapeHtml(h.title || '')}" style="min-width:280px;">
+        <input type="text" class="imp-title" placeholder="Title" value="${escapeHtml(historyItem.title || '')}" style="min-width:280px;">
         <span>/</span>
         <select class="imp-torrent" style="min-width:320px;">
-          <option disabled selected>Loading torrents…</option>
+          <option disabled selected>Loading torrents...</option>
         </select>
         <button class="imp-go">Copy to Library</button>
       </div>
       <div class="imp-status" style="margin-top:6px;color:#666;"></div>
     </div>
   `;
+  row.after(importRow);
+  importRow.style.display = '';
 
-  const authorInput = expTd.querySelector('.imp-author');
-  const titleInput  = expTd.querySelector('.imp-title');
-  const sel         = expTd.querySelector('.imp-torrent');
-  const goBtn       = expTd.querySelector('.imp-go');
-  const st          = expTd.querySelector('.imp-status');
+  const authorInput = importCell.querySelector('.imp-author');
+  const titleInput = importCell.querySelector('.imp-title');
+  const torrentSelect = importCell.querySelector('.imp-torrent');
+  const goBtn = importCell.querySelector('.imp-go');
+  const status = importCell.querySelector('.imp-status');
 
-  // load torrents with our Transmission label
   try {
-    const r = await fetch('/transmission/torrents');
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const j = await r.json();
-    sel.innerHTML = '';
-    (j.items || []).forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.hash;
-      opt.textContent = `${t.name}  —  ${t.single_file ? 'single-file' : (t.root || t.name)}`;
-      sel.appendChild(opt);
+    const torrents = await getCompletedTorrents();
+    if (activeImportHistoryId !== historyItem.id) return;
+
+    torrentSelect.innerHTML = '';
+    torrents.forEach((torrent) => {
+      const option = document.createElement('option');
+      option.value = torrent.hash;
+      option.textContent = `${torrent.name} - ${torrent.single_file ? 'single-file' : (torrent.root || torrent.name)}`;
+      torrentSelect.appendChild(option);
     });
-    if (!sel.children.length) {
-      const opt = document.createElement('option');
-      opt.disabled = true; opt.selected = true;
-      opt.textContent = 'No completed torrents with app label';
-      sel.appendChild(opt);
+
+    if (!torrentSelect.children.length) {
+      const option = document.createElement('option');
+      option.disabled = true;
+      option.selected = true;
+      option.textContent = 'No completed torrents with app label';
+      torrentSelect.appendChild(option);
     }
   } catch (e) {
     console.error(e);
-    sel.innerHTML = '<option disabled selected>Failed to load torrents</option>';
+    if (activeImportHistoryId === historyItem.id) {
+      torrentSelect.innerHTML = '<option disabled selected>Failed to load torrents</option>';
+    }
   }
 
   goBtn.addEventListener('click', async (ev) => {
     ev.preventDefault();
     const author = authorInput.value.trim();
-    const title  = titleInput.value.trim();
-    const hash   = sel.value;
+    const title = titleInput.value.trim();
+    const hash = torrentSelect.value;
+
     if (!author || !title || !hash) {
-      st.textContent = 'Please fill Author, Title, and select a torrent.';
+      status.textContent = 'Please fill Author, Title, and select a torrent.';
       return;
     }
+
     goBtn.disabled = true;
-    st.textContent = 'Importing…';
+    status.textContent = 'Importing...';
+
     try {
-      const r = await fetch('/import', {
+      const result = await fetchJson('/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           author,
           title,
           hash,
-          history_id: h.id
+          history_id: historyItem.id
         })
       });
-      if (!r.ok) {
-        let msg = `HTTP ${r.status}`;
-        try { const j = await r.json(); if (j?.detail) msg += ` — ${j.detail}`; } catch {}
-        throw new Error(msg);
-      }
-      const jr = await r.json();
-      st.textContent = `Done → ${jr.dest}`;
-      goBtn.textContent = 'Imported';
-      
-      // update Status cell in this row: columns are
-      // 0 Title, 1 Author, 2 Narrator, 3 Link, 4 When, 5 Status, 6 Import, 7 Remove
-      const statusTd = tr.children[5];
-      if (statusTd) statusTd.textContent = 'imported';
 
-      // Bonus: refresh the torrents list so this one disappears after labels are cleared server-side
-      // (optional) const _ = await fetch('/transmission/torrents'); // ignore result
+      cachedTorrents = null;
+      cachedTorrentsPromise = null;
+      status.textContent = `Done -> ${result.dest}`;
+      goBtn.textContent = 'Imported';
+
+      const statusTd = row.children[5];
+      if (statusTd) statusTd.textContent = 'imported';
     } catch (e) {
       console.error(e);
-      st.textContent = `Failed: ${e.message}`;
+      status.textContent = `Failed: ${e.message}`;
       goBtn.disabled = false;
     }
   });
-});
+}
+
+async function loadHistory() {
+  try {
+    const j = await fetchJson('/history');
+    closeImportPanel();
+    historyBody.innerHTML = '';
+
+    const items = j.items || [];
+    if (!items.length) {
+      renderEmptyHistory();
+      historyCard.style.display = '';
+      return;
+    }
+
+    items.forEach((item) => {
+      const tr = document.createElement('tr');
+      const when = item.added_at ? new Date(item.added_at.replace(' ', 'T') + 'Z').toLocaleString() : '';
+      const linkURL = item.mam_id ? `https://www.myanonamouse.net/t/${encodeURIComponent(item.mam_id)}` : '';
+
+      const importBtn = document.createElement('button');
+      importBtn.textContent = 'Import';
+      importBtn.addEventListener('click', async () => {
+        await openImportPanel(item, tr);
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = 'Remove';
+      removeBtn.addEventListener('click', async () => {
+        removeBtn.disabled = true;
+        try {
+          await fetchJson(`/history/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+          if (activeImportHistoryId === item.id) closeImportPanel();
+          tr.remove();
+          if (!historyBody.children.length) renderEmptyHistory();
+        } catch (e) {
+          console.error('remove failed', e);
+          removeBtn.disabled = false;
+        }
+      });
+
+      tr.innerHTML = `
+        <td>${escapeHtml(item.title || '')}</td>
+        <td>${escapeHtml(item.author || '')}</td>
+        <td>${escapeHtml(item.narrator || '')}</td>
+        <td class="center">${linkURL ? `<a href="${linkURL}" target="_blank" rel="noopener noreferrer" title="Open on MAM">🔗</a>` : ''}</td>
+        <td>${escapeHtml(when)}</td>
+        <td>${escapeHtml(item.torrent_status || '')}</td>
+        <td></td>
+        <td></td>
+      `;
+
+      tr.children[6].appendChild(importBtn);
+      tr.children[7].appendChild(removeBtn);
+      historyBody.appendChild(tr);
     });
 
-    card.style.display = ''; // always visible
+    historyCard.style.display = '';
   } catch (e) {
     console.error('history load failed', e);
   }
