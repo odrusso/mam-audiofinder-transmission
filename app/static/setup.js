@@ -1,20 +1,4 @@
-// Simple first-run setup helper
-
-async function runHealthCheck() {
-  const healthEl = document.getElementById('health');
-  if (!healthEl) return;
-  try {
-    const r = await fetch('/health');
-    const j = await r.json();
-    healthEl.textContent = j.ok ? 'OK' : 'Not OK';
-  } catch {
-    healthEl.textContent = 'Error';
-  }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
-  runHealthCheck();
-
   const form = document.getElementById('setupForm');
   const statusEl = document.getElementById('setupStatus');
   if (!form) return;

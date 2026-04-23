@@ -25,17 +25,6 @@ importRow.appendChild(importCell);
 // Focus the search box
 if (q) q.focus();
 
-// ---------- Health check ----------
-(async () => {
-  try {
-    const r = await fetch('/health');
-    const j = await r.json();
-    document.getElementById('health').textContent = j.ok ? 'OK' : 'Not OK';
-  } catch {
-    document.getElementById('health').textContent = 'Error';
-  }
-})();
-
 // ---------- Show History (even without searching) ----------
 if (showHistoryBtn) {
   showHistoryBtn.addEventListener('click', async () => {
