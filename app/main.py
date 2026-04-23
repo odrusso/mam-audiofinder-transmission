@@ -7,10 +7,11 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from datetime import datetime
-from typing import List, Tuple
 
 # ---------------------------- Config ----------------------------
 CONFIG_PATH = os.getenv("APP_CONFIG_PATH", "/data/config.json")
+DOWNLOADS_DIR = "/downloads"
+LIBRARY_DIR = "/library"
 
 def load_json_config() -> dict:
     try:
@@ -38,49 +39,6 @@ def build_mam_cookie(raw: str) -> str:
         return f"mam_id={raw}"
     return raw
 
-def build_transmission_path_map(raw_cfg, raw_env: str | None, dl_dir: str, transmission_inner_prefix: str) -> List[Tuple[str, str]]:
-    pairs: List[Tuple[str, str]] = []
-
-    # 1) JSON config: list of {transmission_prefix, app_prefix}
-    if isinstance(raw_cfg, list):
-        for item in raw_cfg:
-            if not isinstance(item, dict):
-                continue
-            transmission = str(
-                item.get("transmission_prefix")
-                or item.get("transmission")
-                or item.get("torrent_prefix")
-                or ""
-            ).strip()
-            app = str(item.get("app_prefix") or item.get("path") or "").strip()
-            if not transmission or not app:
-                continue
-            transmission = transmission.rstrip("/") or "/"
-            app = app.rstrip("/") or "/"
-            pairs.append((transmission, app))
-
-    # 2) Env string: "transmission_prefix=app_prefix;other_transmission=other_app"
-    if not pairs and raw_env:
-        val = raw_env.strip()
-        if val:
-            for part in val.split(";"):
-                part = part.strip()
-                if not part or "=" not in part:
-                    continue
-                transmission, app = part.split("=", 1)
-                transmission = transmission.strip().rstrip("/") or "/"
-                app = app.strip().rstrip("/") or "/"
-                if transmission and app:
-                    pairs.append((transmission, app))
-
-    # 3) Fallback: derive from TRANSMISSION_INNER_DL_PREFIX and DL_DIR
-    if not pairs and transmission_inner_prefix and dl_dir:
-        transmission = transmission_inner_prefix.rstrip("/") or "/"
-        app = dl_dir.rstrip("/") or "/"
-        pairs.append((transmission, app))
-
-    return pairs
-
 class Settings:
     def __init__(self) -> None:
         self.reload()
@@ -101,22 +59,9 @@ class Settings:
         ).rstrip("/")
         self.TRANSMISSION_USER = cfg.get("TRANSMISSION_USER") or os.getenv("TRANSMISSION_USER", "")
         self.TRANSMISSION_PASS = cfg.get("TRANSMISSION_PASS") or os.getenv("TRANSMISSION_PASS", "")
-        self.TRANSMISSION_DOWNLOAD_DIR = cfg.get("TRANSMISSION_DOWNLOAD_DIR") or os.getenv("TRANSMISSION_DOWNLOAD_DIR", "")
         self.TRANSMISSION_LABEL = cfg.get("TRANSMISSION_LABEL") or os.getenv("TRANSMISSION_LABEL", "mam-audiofinder")
-
-        self.DL_DIR = cfg.get("DL_DIR") or os.getenv("DL_DIR", "/media/torrents")
-        self.LIB_DIR = cfg.get("LIB_DIR") or os.getenv("LIB_DIR", "/media/audiobookshelf")
-
-        self.TRANSMISSION_INNER_DL_PREFIX = cfg.get("TRANSMISSION_INNER_DL_PREFIX") or os.getenv("TRANSMISSION_INNER_DL_PREFIX", "/downloads")
-
-        raw_pm_cfg = cfg.get("TRANSMISSION_PATH_MAP")
-        raw_pm_env = os.getenv("TRANSMISSION_PATH_MAP")
-        self.TRANSMISSION_PATH_MAP = build_transmission_path_map(
-            raw_pm_cfg,
-            raw_pm_env,
-            self.DL_DIR,
-            self.TRANSMISSION_INNER_DL_PREFIX,
-        )
+        self.DOWNLOADS_DIR = DOWNLOADS_DIR
+        self.LIBRARY_DIR = LIBRARY_DIR
 
         self.UMASK = cfg.get("UMASK") or os.getenv("UMASK")
 
@@ -177,22 +122,14 @@ with engine.begin() as cx:
             pass
 
 def needs_setup() -> bool:
-    # Consider setup incomplete if we don't have a MAM cookie,
-    # a library directory, or any Transmission path mapping.
-    return not settings.MAM_COOKIE or not settings.LIB_DIR or not settings.TRANSMISSION_PATH_MAP
+    return not settings.MAM_COOKIE
 
 def setup_context(request: Request) -> dict:
-    transmission_prefix = settings.TRANSMISSION_INNER_DL_PREFIX
-    app_prefix = settings.DL_DIR
-    if settings.TRANSMISSION_PATH_MAP:
-        transmission_prefix, app_prefix = settings.TRANSMISSION_PATH_MAP[0]
     return {
         "request": request,
         "transmission_url": settings.TRANSMISSION_URL,
         "transmission_user": settings.TRANSMISSION_USER,
-        "lib_dir": settings.LIB_DIR,
-        "transmission_prefix": transmission_prefix,
-        "app_prefix": app_prefix,
+        "transmission_label": settings.TRANSMISSION_LABEL,
     }
 
 class SetupPayload(BaseModel):
@@ -200,9 +137,7 @@ class SetupPayload(BaseModel):
     transmission_url: str | None = None
     transmission_user: str | None = None
     transmission_pass: str | None = None
-    lib_dir: str | None = None
-    transmission_prefix: str | None = None
-    app_prefix: str | None = None
+    transmission_label: str | None = None
 
 # ---------------------------- App ----------------------------
 app = FastAPI(title="MAM Audiobook Finder", version="0.3.0")
@@ -243,13 +178,8 @@ async def api_setup(body: SetupPayload):
         cfg["TRANSMISSION_USER"] = body.transmission_user.strip()
     if body.transmission_pass:
         cfg["TRANSMISSION_PASS"] = body.transmission_pass
-    if body.lib_dir and body.lib_dir.strip():
-        cfg["LIB_DIR"] = body.lib_dir.strip()
-
-    if body.transmission_prefix and body.transmission_prefix.strip() and body.app_prefix and body.app_prefix.strip():
-        transmission_prefix = body.transmission_prefix.strip().rstrip("/") or "/"
-        app_prefix = body.app_prefix.strip().rstrip("/") or "/"
-        cfg["TRANSMISSION_PATH_MAP"] = [{"transmission_prefix": transmission_prefix, "app_prefix": app_prefix}]
+    if body.transmission_label and body.transmission_label.strip():
+        cfg["TRANSMISSION_LABEL"] = body.transmission_label.strip()
 
     # Persist config
     try:
@@ -416,8 +346,6 @@ def transmission_labels(mam_id: str = "") -> list[str]:
 
 def torrent_add_arguments(mam_id: str, source_key: str, source_value: str) -> dict:
     args = {source_key: source_value}
-    if settings.TRANSMISSION_DOWNLOAD_DIR:
-        args["download-dir"] = settings.TRANSMISSION_DOWNLOAD_DIR
     labels = transmission_labels(mam_id)
     if labels:
         args["labels"] = labels
@@ -638,23 +566,27 @@ def do_import(body: ImportBody):
             raise HTTPException(status_code=404, detail="Torrent download directory not found")
         existing_labels = info.get("labels") or []
 
-    # Map Transmission's internal paths to this container's paths.
-    def map_transmission_path(p: str) -> str:
+    # Transmission and this app must share the same static in-container mount.
+    def validate_download_path(p: str) -> str:
         p = (p or "").strip()
         if not p:
             return p
-        for transmission_prefix, app_prefix in settings.TRANSMISSION_PATH_MAP:
-            transmission = transmission_prefix.rstrip("/") or "/"
-            if p == transmission or p.startswith(transmission + "/"):
-                return (app_prefix.rstrip("/") or "/") + p[len(transmission):]
-        if p.startswith("/media/"):
+        downloads_dir = settings.DOWNLOADS_DIR.rstrip("/") or "/"
+        if p == downloads_dir or p.startswith(downloads_dir + "/"):
             return p
-        return p
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Transmission reports downloadDir '{p}', but this app expects completed "
+                f"downloads under {settings.DOWNLOADS_DIR}. Mount the same downloads "
+                f"directory at {settings.DOWNLOADS_DIR} in both containers."
+            ),
+        )
 
-    source_dir = Path(map_transmission_path(download_dir))
+    source_dir = Path(validate_download_path(download_dir))
 
     # Destination: /library/Author/Title[/...]
-    lib = Path(settings.LIB_DIR)
+    lib = Path(settings.LIBRARY_DIR)
     author_dir = lib / author
     author_dir.mkdir(parents=True, exist_ok=True)
     dest_dir = next_available(author_dir / title)

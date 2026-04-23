@@ -4,20 +4,17 @@
 
 - Added a `Settings` helper in `app/main.py`:
   - Loads config from `/data/config.json` (or `APP_CONFIG_PATH`) and falls back to env vars.
-  - Centralizes: `MAM_COOKIE`, `TRANSMISSION_URL`, `TRANSMISSION_USER`, `TRANSMISSION_PASS`, `DL_DIR`, `LIB_DIR`, `TRANSMISSION_INNER_DL_PREFIX`, `TRANSMISSION_PATH_MAP`, etc.
-- Introduced explicit Transmission → app path mapping:
-  - `settings.TRANSMISSION_PATH_MAP` is a list of `(transmission_prefix, app_prefix)` pairs.
-  - Populated from:
-    - JSON config key `TRANSMISSION_PATH_MAP` (list of objects with `transmission_prefix` / `app_prefix`), or
-    - Env `TRANSMISSION_PATH_MAP="/downloads=/media/torrents"`, or
-    - Fallback: `TRANSMISSION_INNER_DL_PREFIX` → `DL_DIR`.
-  - `do_import` uses this mapping in `map_transmission_path`.
+  - Centralizes: `MAM_COOKIE`, `TRANSMISSION_URL`, `TRANSMISSION_USER`, `TRANSMISSION_PASS`, `TRANSMISSION_LABEL`, etc.
+- Standardized storage paths:
+  - The app expects completed Transmission downloads under `/downloads` and imports into `/library`.
+  - Docker Compose mounts host storage directly to those static in-container paths.
+  - Imports reject Transmission paths outside `/downloads` with a clear mount mismatch error.
 - Added Transmission RPC integration:
   - `POST /add` calls `torrent-add` using either a MAM direct URL or base64 `.torrent` upload.
   - `GET /transmission/torrents` calls `torrent-get`, returning completed torrents with `TRANSMISSION_LABEL`.
   - Imports always copy files into the Audiobookshelf library and remove the app label after import.
 - Added a first‑run setup wizard:
-  - `GET /` serves `setup.html` if `needs_setup()` (no cookie, no lib dir, or no path map) and setup is not disabled via env.
+  - `GET /` serves `setup.html` if `needs_setup()` (no MAM cookie) and setup is not disabled via env.
   - `GET /setup` shows the wizard unless `DISABLE_SETUP` is set (then it returns 404).
   - `POST /api/setup` writes `/data/config.json` and calls `settings.reload()`.
   - UI files: `app/templates/setup.html`, `app/static/setup.js`.
@@ -32,7 +29,7 @@
   - `uvicorn main:app --reload --host 0.0.0.0 --port 8080`
   - Optionally set `APP_CONFIG_PATH=../dev-config.json` to avoid writing into `/data`.
 - Docker (on Unraid or similar):
-  - Update `.env` for mounts and ports, then `docker compose up -d`.
+  - Update `.env` for runtime values and `docker-compose.yml` for `/downloads` and `/library` mounts, then `docker compose up -d`.
   - First visit to `/` on a fresh data directory should trigger the setup wizard (unless `DISABLE_SETUP` is set).
 
 ## Release Notes / Checklist (GHCR)
@@ -50,7 +47,6 @@
 ## Possible Next Steps
 
 - Add a “Test Transmission connection” button on the setup page.
-- Improve error messages when `map_transmission_path` cannot resolve a path.
 - Add a minimal `pytest` suite that mocks MAM/Transmission and exercises `/health`, `/search`, `/add`, `/transmission/torrents`, and `/import` using a temp `/data` directory.
 - Investigate adding real time download status for recently added torrents
 - Investigate displaying artwork. Available via MAM API?

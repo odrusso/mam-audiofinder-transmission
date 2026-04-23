@@ -51,6 +51,7 @@
 
 - Config precedence: values in `/data/config.json` (written via the `/setup` UI) override corresponding env vars; env vars act as defaults/fallbacks.
 - Setup locking: when `DISABLE_SETUP` is truthy (`1`, `true`, etc.), hide the Setup button in the main UI and return 404 for `/setup` and `/api/setup`.
-- Storage layouts:
-  - Default/simplest: single `MEDIA_ROOT` mount to `/media`, with `DL_DIR` and `LIB_DIR` under `/media/...`.
-  - Advanced: separate mounts for downloads/library wired directly in `docker-compose.yml`, with `DL_DIR` / `LIB_DIR` pointing at those in‑container paths and `MEDIA_ROOT` unused.
+- Storage paths are static inside the app container:
+  - Transmission downloads must be mounted at `/downloads`.
+  - The Audiobookshelf library must be mounted at `/library`.
+  - Configure host paths in `docker-compose.yml`, not through app env vars or setup fields.

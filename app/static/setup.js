@@ -26,9 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
       transmission_url: document.getElementById('transmission_url')?.value.trim() || '',
       transmission_user: document.getElementById('transmission_user')?.value.trim() || '',
       transmission_pass: document.getElementById('transmission_pass')?.value || '',
-      transmission_prefix: document.getElementById('transmission_prefix')?.value.trim() || '',
-      app_prefix: document.getElementById('app_prefix')?.value.trim() || '',
-      lib_dir: document.getElementById('lib_dir')?.value.trim() || '',
+      transmission_label: document.getElementById('transmission_label')?.value.trim() || '',
     };
 
     statusEl.textContent = 'Saving…';

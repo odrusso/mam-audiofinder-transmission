@@ -12,5 +12,7 @@ services:
       UMASK: "${UMASK}"
     volumes:
       - ${DATA_DIR}:/data
-      - ${MEDIA_ROOT}:/media
+      # Edit the host paths on the left. Keep the in-container paths static.
+      - /path/to/transmission-downloads:/downloads
+      - /path/to/audiobookshelf-library:/library
     restart: unless-stopped

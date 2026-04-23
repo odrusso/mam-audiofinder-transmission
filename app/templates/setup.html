@@ -37,7 +37,7 @@
 
   <div class="card">
     <p class="muted">
-      Connect to MyAnonamouse, Transmission, and your Audiobookshelf library.
+      Connect to MyAnonamouse and Transmission. Docker Compose should mount downloads at <code>/downloads</code> and the Audiobookshelf library at <code>/library</code>.
     </p>
 
     <form id="setupForm">
@@ -64,21 +64,9 @@
       </div>
 
       <div class="row">
-        <label for="transmission_prefix">Transmission download path prefix</label>
-        <input id="transmission_prefix" name="transmission_prefix" type="text" value="{{ transmission_prefix }}" placeholder="/downloads" />
-        <small>The beginning of the completed torrent path as Transmission sees it, e.g. <code>/downloads</code>. If Transmission is running in Docker, this is the path <em>within</em> the Transmission container.</small>
-      </div>
-
-      <div class="row">
-        <label for="app_prefix">Downloads path inside this container</label>
-        <input id="app_prefix" name="app_prefix" type="text" value="{{ app_prefix }}" placeholder="/downloads" />
-        <small>The path inside <em>this</em> container where that same torrent downloads directory is mounted (e.g. <code>/downloads</code> or <code>/media/torrents</code>).</small>
-      </div>
-
-      <div class="row">
-        <label for="lib_dir">Audiobookshelf library directory (inside this container)</label>
-        <input id="lib_dir" name="lib_dir" type="text" value="{{ lib_dir }}" placeholder="/library/audiobooks" />
-        <small>Where to place imported books, e.g. the root of your Audiobookshelf library. This should be the path within <em>this</em> container.</small>
+        <label for="transmission_label">Transmission label</label>
+        <input id="transmission_label" name="transmission_label" type="text" value="{{ transmission_label }}" placeholder="mam-audiofinder" />
+        <small>New torrents get this label, and the import view only lists completed torrents with this label.</small>
       </div>
 
       <div class="row">
