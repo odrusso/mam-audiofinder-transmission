@@ -1,7 +1,7 @@
 services:
   mam-audiofinder:
     build: .
-    image: ghcr.io/raygan/mam-audiofinder:latest
+    image: ghcr.io/odrusso/mam-audiofinder-transmission:latest
     container_name: mam-audiofinder
     ports:
       - "${APP_PORT}:8080"
