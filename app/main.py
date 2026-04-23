@@ -273,7 +273,7 @@ def transmission_auth():
         return (settings.TRANSMISSION_USER, settings.TRANSMISSION_PASS)
     return None
 
-async def transmission_rpc_async(client: httpx.AsyncClient, method: str, arguments: dict | None = None) -> dict:
+async def transmission_rpc(client: httpx.AsyncClient, method: str, arguments: dict | None = None) -> dict:
     payload = {"method": method, "arguments": arguments or {}}
     r = await client.post(settings.TRANSMISSION_URL, json=payload, auth=transmission_auth())
     if r.status_code == 409:
@@ -281,24 +281,6 @@ async def transmission_rpc_async(client: httpx.AsyncClient, method: str, argumen
         if session_id:
             client.headers["X-Transmission-Session-Id"] = session_id
             r = await client.post(settings.TRANSMISSION_URL, json=payload, auth=transmission_auth())
-    if r.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"Transmission RPC failed: {r.status_code} {r.text[:160]}")
-    try:
-        data = r.json()
-    except ValueError:
-        raise HTTPException(status_code=502, detail=f"Transmission returned non-JSON: {r.text[:160]}")
-    if data.get("result") != "success":
-        raise HTTPException(status_code=502, detail=f"Transmission {method} failed: {data.get('result')}")
-    return data.get("arguments") or {}
-
-def transmission_rpc_sync(client: httpx.Client, method: str, arguments: dict | None = None) -> dict:
-    payload = {"method": method, "arguments": arguments or {}}
-    r = client.post(settings.TRANSMISSION_URL, json=payload, auth=transmission_auth())
-    if r.status_code == 409:
-        session_id = r.headers.get("X-Transmission-Session-Id")
-        if session_id:
-            client.headers["X-Transmission-Session-Id"] = session_id
-            r = client.post(settings.TRANSMISSION_URL, json=payload, auth=transmission_auth())
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Transmission RPC failed: {r.status_code} {r.text[:160]}")
     try:
@@ -377,7 +359,7 @@ async def add_to_transmission(body: AddBody):
         # Try URL add first if we have a cookie-less direct link
         if direct_url:
             try:
-                args = await transmission_rpc_async(
+                args = await transmission_rpc(
                     client,
                     "torrent-add",
                     torrent_add_arguments(mam_id, "filename", direct_url),
@@ -409,7 +391,7 @@ async def add_to_transmission(body: AddBody):
             raise HTTPException(status_code=502, detail="Could not fetch .torrent from MAM (no dl hash and cookie fetch failed).")
 
         metainfo = base64.b64encode(torrent_bytes).decode("ascii")
-        args = await transmission_rpc_async(
+        args = await transmission_rpc(
             client,
             "torrent-add",
             torrent_add_arguments(mam_id, "metainfo", metainfo),
@@ -441,7 +423,7 @@ def delete_history(row_id: int):
 @app.get("/transmission/torrents")
 async def transmission_torrents():
     async with httpx.AsyncClient(timeout=30) as c:
-        args = await transmission_rpc_async(c, "torrent-get", {
+        args = await transmission_rpc(c, "torrent-get", {
             "fields": [
                 "id",
                 "hashString",
@@ -517,14 +499,14 @@ class ImportBody(BaseModel):
     history_id: int | None = None
 
 @app.post("/import")
-def do_import(body: ImportBody):
+async def do_import(body: ImportBody):
     author = sanitize(body.author)
     title = sanitize(body.title)
     h = body.hash
 
     # Query Transmission for files and download directory.
-    with httpx.Client(timeout=30) as c:
-        args = transmission_rpc_sync(c, "torrent-get", {
+    async with httpx.AsyncClient(timeout=30) as c:
+        args = await transmission_rpc(c, "torrent-get", {
             "ids": [h],
             "fields": ["id", "hashString", "name", "downloadDir", "labels", "files"],
         })
@@ -599,8 +581,8 @@ def do_import(body: ImportBody):
             if label != settings.TRANSMISSION_LABEL and not str(label).startswith("mamid=")
         ]
         try:
-            with httpx.Client(timeout=15) as c2:
-                transmission_rpc_sync(c2, "torrent-set", {
+            async with httpx.AsyncClient(timeout=15) as c2:
+                await transmission_rpc(c2, "torrent-set", {
                     "ids": [h],
                     "labels": remaining_labels,
                 })
