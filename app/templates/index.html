@@ -6,6 +6,10 @@
   <style>
     .row { display:flex; gap:0.5rem; flex-wrap: wrap; }
     .card { max-width: 1100px; }
+    .status-line { margin-top: 0.5rem; }
+    .history-panel { margin-top: 1rem; display: none; }
+    .section-title { margin: 0 0 0.5rem 0; font-size: 1.1rem; }
+    .actions-row { display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end; }
     input[type="text"] { flex:1; min-width: 260px; padding:0.6rem; }
     select { padding:0.6rem; }
     table { width:100%; border-collapse: collapse; margin-top: 1rem; }
@@ -40,7 +44,7 @@
     <button id="searchBtn" type="submit">Search</button>
   </form>
 
-  <div id="status" class="muted" style="margin-top:0.5rem"></div>
+  <div id="status" class="muted status-line"></div>
 
   <table id="results" style="display:none">
     <thead>
@@ -59,8 +63,8 @@
     <tbody></tbody>
   </table>
 
-  <div id="historyCard" class="card" style="margin-top:1rem; display:none">
-    <h3 style="margin:0 0 .5rem 0; font-size:1.1rem;">History</h3>
+  <div id="historyCard" class="card history-panel">
+    <h3 class="section-title">History</h3>
     <table id="history">
       <thead>
         <tr>
@@ -80,7 +84,7 @@
 
   <p class="muted">Health check: <code id="health">...</code></p>
 
-  <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
+  <div class="actions-row">
     <button id="showHistoryBtn" title="Show download history">History &amp; Import</button>
     {% if setup_enabled %}
     <button type="button" onclick="window.location.href='/setup'">Setup / Configuration</button>

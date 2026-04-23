@@ -472,8 +472,6 @@ async def transmission_torrents():
 from pathlib import Path
 import shutil
 
-AUDIO_EXTS = None  # copy everything except .cue (per your request)
-
 def sanitize(name: str) -> str:
     s = name.strip().replace(":", " -").replace("\\", "﹨").replace("/", "﹨")
     return re.sub(r"\s+", " ", s)[:200] or "Unknown"

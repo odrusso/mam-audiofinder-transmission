@@ -8,6 +8,7 @@
     .title-link:hover { text-decoration: underline; }
     .card { max-width: 900px; }
     .row { display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1rem; }
+    .health-line { margin-top: 1rem; }
     label { font-weight: 500; }
     input[type="text"], input[type="password"], textarea {
       width:100%;
@@ -72,7 +73,7 @@
     </p>
   </div>
 
-  <p class="muted" style="margin-top:1rem">
+  <p class="muted health-line">
     Health check: <code id="health">...</code>
   </p>
 {% endblock %}
