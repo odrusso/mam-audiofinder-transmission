@@ -22,13 +22,17 @@ const importCell = document.createElement('td');
 importCell.colSpan = historyColumnCount;
 importRow.appendChild(importCell);
 
+function showHistoryCard() {
+  historyCard.style.display = 'block';
+}
+
 // Focus the search box
 if (q) q.focus();
 
 // ---------- Show History (even without searching) ----------
 if (showHistoryBtn) {
   showHistoryBtn.addEventListener('click', async () => {
-    historyCard.style.display = '';
+    showHistoryCard();
     await loadHistory();
     historyCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
@@ -200,8 +204,8 @@ async function openImportPanel(historyItem, row) {
 
   activeImportHistoryId = historyItem.id;
   importCell.innerHTML = `
-    <div class="import-form" style="padding:8px;border:1px solid #ddd;border-radius:8px;margin:6px 0;">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <div class="import-form import-panel">
+      <div class="import-panel-row">
         <span>Import:</span>
         <span>/</span>
         <input type="text" class="imp-author" placeholder="Author" value="${escapeHtml(historyItem.author || '')}" style="min-width:220px;">
@@ -213,7 +217,7 @@ async function openImportPanel(historyItem, row) {
         </select>
         <button class="imp-go">Copy to Library</button>
       </div>
-      <div class="imp-status" style="margin-top:6px;color:#666;"></div>
+      <div class="imp-status"></div>
     </div>
   `;
   row.after(importRow);
@@ -301,7 +305,7 @@ async function loadHistory() {
     const items = j.items || [];
     if (!items.length) {
       renderEmptyHistory();
-      historyCard.style.display = '';
+      showHistoryCard();
       return;
     }
 
@@ -347,7 +351,7 @@ async function loadHistory() {
       historyBody.appendChild(tr);
     });
 
-    historyCard.style.display = '';
+    showHistoryCard();
   } catch (e) {
     console.error('history load failed', e);
   }

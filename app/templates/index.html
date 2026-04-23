@@ -12,8 +12,6 @@
     .actions-row { display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end; }
     input[type="text"] { flex:1; min-width: 260px; padding:0.6rem; }
     select { padding:0.6rem; }
-    table { width:100%; border-collapse: collapse; margin-top: 1rem; }
-    th, td { padding: 0.5rem; border-bottom: 1px solid #eee; text-align: left; }
     .right { text-align:right; }
     .center { text-align: center; }
     .import-form input, .import-form select { padding:4px 6px; }
@@ -85,7 +83,7 @@
   <p class="muted">Health check: <code id="health">...</code></p>
 
   <div class="actions-row">
-    <button id="showHistoryBtn" title="Show download history">History &amp; Import</button>
+    <button id="showHistoryBtn" type="button" title="Show download history">History &amp; Import</button>
     {% if setup_enabled %}
     <button type="button" onclick="window.location.href='/setup'">Setup / Configuration</button>
     {% endif %}
