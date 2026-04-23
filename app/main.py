@@ -84,42 +84,15 @@ with engine.begin() as cx:
           id INTEGER PRIMARY KEY,
           mam_id   TEXT,
           title    TEXT,
+          author   TEXT,
+          narrator TEXT,
           dl       TEXT,
           added_at TEXT DEFAULT (datetime('now')),
+          imported_at TEXT,
           torrent_status TEXT,
           torrent_hash   TEXT
         )
     """))
-    # Add columns if missing (idempotent)
-    for ddl in (
-        "ALTER TABLE history ADD COLUMN author   TEXT",
-        "ALTER TABLE history ADD COLUMN narrator TEXT"
-    ):
-        try:
-            cx.execute(text(ddl))
-        except Exception:
-            pass
-        
-    try:
-        cx.execute(text("ALTER TABLE history ADD COLUMN imported_at TEXT"))
-    except Exception:
-        pass
-    for ddl in (
-        "ALTER TABLE history ADD COLUMN torrent_status TEXT",
-        "ALTER TABLE history ADD COLUMN torrent_hash TEXT",
-    ):
-        try:
-            cx.execute(text(ddl))
-        except Exception:
-            pass
-    for ddl in (
-        "UPDATE history SET torrent_status = qb_status WHERE (torrent_status IS NULL OR torrent_status = '') AND qb_status IS NOT NULL",
-        "UPDATE history SET torrent_hash = qb_hash WHERE (torrent_hash IS NULL OR torrent_hash = '') AND qb_hash IS NOT NULL",
-    ):
-        try:
-            cx.execute(text(ddl))
-        except Exception:
-            pass
 
 def needs_setup() -> bool:
     return not settings.MAM_COOKIE
