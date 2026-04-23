@@ -1,5 +1,6 @@
 services:
   mam-audiofinder:
+    # `up --build` uses the checked-out source; `pull` can use the published GHCR image.
     build: .
     image: ghcr.io/odrusso/mam-audiofinder-transmission:latest
     container_name: mam-audiofinder
@@ -12,7 +13,7 @@ services:
       UMASK: "${UMASK}"
     volumes:
       - ${DATA_DIR}:/data
-      # Edit the host paths on the left. Keep the in-container paths static.
+      # Replace the host paths on the left before first run. Keep the in-container paths static.
       - /path/to/transmission-downloads:/downloads
       - /path/to/audiobookshelf-library:/library
     restart: unless-stopped

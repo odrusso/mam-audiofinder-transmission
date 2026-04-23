@@ -19,7 +19,7 @@ A lightweight web app + API to quickly search MyAnonamouse for audiobooks, add t
 ## Requirements
 
 - Transmission with RPC enabled and label support
-- A valid MAM session cookie  
+- A valid MAM session cookie for setup or env/config fallback
 - Docker & Docker Compose
 
 ## Because You'll Ask
@@ -32,24 +32,41 @@ A lightweight web app + API to quickly search MyAnonamouse for audiobooks, add t
 
 ## Quick Start
 
-This repository includes a `docker-compose.yml` for Docker users. The usual flow is:
+The checked-in `docker-compose.yml` supports both local source builds and the published GHCR image. The simplest first boot from a local checkout is:
 
 1. Clone this repository and `cd` into it:
    ```bash
-   git clone https://github.com/raygan/mam-audiofinder.git
-   cd mam-audiofinder
+   git clone https://github.com/odrusso/mam-audiofinder-transmission.git
+   cd mam-audiofinder-transmission
    ```
 2. Copy `.env.example` → `.env` and fill in the small set of runtime values:
    - App port and state directory (`APP_PORT`, `DATA_DIR`)
    - Container user/permissions (`PUID`, `PGID`, `UMASK`)
-3. Edit the `volumes` section in `docker-compose.yml` so your host storage is mounted at the app's static in-container paths:
+3. Create the host state directory from `DATA_DIR` and make sure it is writable by `PUID:PGID`.
+4. Edit the `volumes` section in `docker-compose.yml` so your host storage is mounted at the app's static in-container paths. Replace the placeholder paths on the left before starting:
    - Transmission downloads at `/downloads`
    - Audiobookshelf library at `/library`
-4. Start the container with Docker Compose:
+5. If Transmission runs in Docker, mount the same host downloads directory into the Transmission container too, so Transmission reports completed downloads under `/downloads`.
+6. Start the container with Docker Compose:
    ```bash
-   docker compose up -d
+   docker compose up -d --build
    ```
-5. Visit [http://localhost:8008](http://localhost:8008) (or your mapped port). On first run, you should land on `/setup` to configure MAM and Transmission.
+7. Visit [http://localhost:8008](http://localhost:8008) or your chosen `APP_PORT`. On first run, the home page will show the setup screen. Enter your MAM cookie, Transmission RPC URL, Transmission credentials if needed, and the label to use for new torrents.
+8. Settings are saved to `/data/config.json`. After you have finished setup, you can optionally set `DISABLE_SETUP=1` and restart the container to hide `/setup`. Do not enable `DISABLE_SETUP` before initial setup unless you are supplying the setup-backed settings through env vars or an existing config file.
+
+If you want to use the published GHCR image instead of building locally, authenticate first if the package is private, then pull and start:
+
+```bash
+echo "$GHCR_PAT" | docker login ghcr.io -u <github-username> --password-stdin
+docker compose pull
+docker compose up -d
+```
+
+To confirm the app is running, open the UI or check the health endpoint on your chosen app port:
+
+```bash
+curl http://localhost:8008/health
+```
 
 ## Environment Variables
 
@@ -71,6 +88,7 @@ Setup-backed values, also supported as env fallbacks:
 
 | Variable             | Description                                                             |
 |----------------------|-------------------------------------------------------------------------|
+| `MAM_BASE`           | Optional advanced override for the MAM base URL                         |
 | `MAM_COOKIE`         | Your MAM session cookie (use ASN-locked cookie)                         |
 | `TRANSMISSION_URL`   | Transmission RPC URL (e.g. `http://transmission:9091/transmission/rpc`) |
 | `TRANSMISSION_USER`  | Transmission RPC username, if auth is enabled                           |
