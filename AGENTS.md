@@ -30,7 +30,7 @@
 
 - There is no formal test suite yet.
 - When changing backend logic, at minimum:
-  - Hit `/health`, `/search`, `/add`, `/qb/torrents`, `/import` manually in a dev environment.
+  - Hit `/health`, `/search`, `/add`, `/transmission/torrents`, `/import` manually in a dev environment.
   - Exercise new code paths via the web UI.
 
 ## Commit & Pull Request Guidelines
@@ -52,5 +52,5 @@
 - Config precedence: values in `/data/config.json` (written via the `/setup` UI) override corresponding env vars; env vars act as defaults/fallbacks.
 - Setup locking: when `DISABLE_SETUP` is truthy (`1`, `true`, etc.), hide the Setup button in the main UI and return 404 for `/setup` and `/api/setup`.
 - Storage layouts:
-  - Default/simplest: single `MEDIA_ROOT` mount to `/media`, with `DL_DIR` and `LIB_DIR` under `/media/...` (hardlink-friendly when same filesystem).
+  - Default/simplest: single `MEDIA_ROOT` mount to `/media`, with `DL_DIR` and `LIB_DIR` under `/media/...`.
   - Advanced: separate mounts for downloads/library wired directly in `docker-compose.yml`, with `DL_DIR` / `LIB_DIR` pointing at those in‑container paths and `MEDIA_ROOT` unused.

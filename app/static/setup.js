@@ -23,10 +23,10 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const body = {
       mam_cookie: document.getElementById('mam_cookie')?.value.trim() || '',
-      qb_url: document.getElementById('qb_url')?.value.trim() || '',
-      qb_user: document.getElementById('qb_user')?.value.trim() || '',
-      qb_pass: document.getElementById('qb_pass')?.value || '',
-      qb_prefix: document.getElementById('qb_prefix')?.value.trim() || '',
+      transmission_url: document.getElementById('transmission_url')?.value.trim() || '',
+      transmission_user: document.getElementById('transmission_user')?.value.trim() || '',
+      transmission_pass: document.getElementById('transmission_pass')?.value || '',
+      transmission_prefix: document.getElementById('transmission_prefix')?.value.trim() || '',
       app_prefix: document.getElementById('app_prefix')?.value.trim() || '',
       lib_dir: document.getElementById('lib_dir')?.value.trim() || '',
     };
@@ -54,4 +54,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
-

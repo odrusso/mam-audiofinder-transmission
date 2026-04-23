@@ -4,14 +4,18 @@
 
 - Added a `Settings` helper in `app/main.py`:
   - Loads config from `/data/config.json` (or `APP_CONFIG_PATH`) and falls back to env vars.
-  - Centralizes: `MAM_COOKIE`, `QB_URL`, `QB_USER`, `QB_PASS`, `DL_DIR`, `LIB_DIR`, `IMPORT_MODE`, `QB_INNER_DL_PREFIX`, `QB_PATH_MAP`, etc.
-- Introduced explicit qB → app path mapping:
-  - `settings.QB_PATH_MAP` is a list of `(qb_prefix, app_prefix)` pairs.
+  - Centralizes: `MAM_COOKIE`, `TRANSMISSION_URL`, `TRANSMISSION_USER`, `TRANSMISSION_PASS`, `DL_DIR`, `LIB_DIR`, `TRANSMISSION_INNER_DL_PREFIX`, `TRANSMISSION_PATH_MAP`, etc.
+- Introduced explicit Transmission → app path mapping:
+  - `settings.TRANSMISSION_PATH_MAP` is a list of `(transmission_prefix, app_prefix)` pairs.
   - Populated from:
-    - JSON config key `QB_PATH_MAP` (list of objects with `qb_prefix` / `app_prefix`), or
-    - Env `QB_PATH_MAP="qb=/path;qb2=/path2"`, or
-    - Fallback: `QB_INNER_DL_PREFIX` → `DL_DIR`.
-  - `do_import` now uses this mapping in `map_qb_path`, with legacy Unraid heuristics left as secondary fallbacks.
+    - JSON config key `TRANSMISSION_PATH_MAP` (list of objects with `transmission_prefix` / `app_prefix`), or
+    - Env `TRANSMISSION_PATH_MAP="/downloads=/media/torrents"`, or
+    - Fallback: `TRANSMISSION_INNER_DL_PREFIX` → `DL_DIR`.
+  - `do_import` uses this mapping in `map_transmission_path`.
+- Added Transmission RPC integration:
+  - `POST /add` calls `torrent-add` using either a MAM direct URL or base64 `.torrent` upload.
+  - `GET /transmission/torrents` calls `torrent-get`, returning completed torrents with `TRANSMISSION_LABEL`.
+  - Imports always copy files into the Audiobookshelf library and remove the app label after import.
 - Added a first‑run setup wizard:
   - `GET /` serves `setup.html` if `needs_setup()` (no cookie, no lib dir, or no path map) and setup is not disabled via env.
   - `GET /setup` shows the wizard unless `DISABLE_SETUP` is set (then it returns 404).
@@ -45,8 +49,8 @@
 
 ## Possible Next Steps
 
-- Add a “Test qB connection” button on the setup page (hit `/api/v2/app/version`).
-- Improve error messages when `map_qb_path` cannot resolve a path.
-- Add a minimal `pytest` suite that mocks MAM/qB and exercises `/health`, `/search`, `/add`, `/qb/torrents`, and `/import` using a temp `/data` directory.
+- Add a “Test Transmission connection” button on the setup page.
+- Improve error messages when `map_transmission_path` cannot resolve a path.
+- Add a minimal `pytest` suite that mocks MAM/Transmission and exercises `/health`, `/search`, `/add`, `/transmission/torrents`, and `/import` using a temp `/data` directory.
 - Investigate adding real time download status for recently added torrents
 - Investigate displaying artwork. Available via MAM API?

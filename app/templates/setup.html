@@ -37,7 +37,7 @@
 
   <div class="card">
     <p class="muted">
-      Connect to MyAnonamouse, qBittorrent, and your Audiobookshelf library.
+      Connect to MyAnonamouse, Transmission, and your Audiobookshelf library.
     </p>
 
     <form id="setupForm">
@@ -48,25 +48,25 @@
       </div>
 
       <div class="row">
-        <label for="qb_url">qBittorrent WebUI URL</label>
-        <input id="qb_url" name="qb_url" type="text" value="{{ qb_url }}" placeholder="http://qbittorrent:8080" />
-        <small>Usually the same URL you use in your browser or from other tools.</small>
+        <label for="transmission_url">Transmission RPC URL</label>
+        <input id="transmission_url" name="transmission_url" type="text" value="{{ transmission_url }}" placeholder="http://transmission:9091/transmission/rpc" />
+        <small>Transmission's RPC endpoint, usually ending in <code>/transmission/rpc</code>.</small>
       </div>
 
       <div class="row">
-        <label for="qb_user">qBittorrent username</label>
-        <input id="qb_user" name="qb_user" type="text" value="{{ qb_user }}" placeholder="admin" />
+        <label for="transmission_user">Transmission username</label>
+        <input id="transmission_user" name="transmission_user" type="text" value="{{ transmission_user }}" placeholder="transmission" />
       </div>
 
       <div class="row">
-        <label for="qb_pass">qBittorrent password</label>
-        <input id="qb_pass" name="qb_pass" type="password" placeholder="••••••••" />
+        <label for="transmission_pass">Transmission password</label>
+        <input id="transmission_pass" name="transmission_pass" type="password" placeholder="••••••••" />
       </div>
 
       <div class="row">
-        <label for="qb_prefix">qBittorrent content path prefix</label>
-        <input id="qb_prefix" name="qb_prefix" type="text" value="{{ qb_prefix }}" placeholder="/downloads" />
-        <small>The beginning of the path shown in qB's “Content” tab for a finished torrent (e.g. <code>/downloads</code>). </br>If QBittorrent is running in Docker, this is the path <em>within</em> the QBittorrent container.</small>
+        <label for="transmission_prefix">Transmission download path prefix</label>
+        <input id="transmission_prefix" name="transmission_prefix" type="text" value="{{ transmission_prefix }}" placeholder="/downloads" />
+        <small>The beginning of the completed torrent path as Transmission sees it, e.g. <code>/downloads</code>. If Transmission is running in Docker, this is the path <em>within</em> the Transmission container.</small>
       </div>
 
       <div class="row">

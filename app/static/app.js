@@ -69,7 +69,7 @@ async function runSearch() {
       const tr = document.createElement('tr');
       const sl = `${it.seeders ?? '-'} / ${it.leechers ?? '-'}`;
 
-      // Add-to-qB button
+      // Add-to-Transmission button
       const addBtn = document.createElement('button');
       addBtn.textContent = 'Add';
       // enable if we have a direct dl hash OR at least an id
@@ -213,7 +213,7 @@ async function loadHistory() {
         <td>${escapeHtml(h.narrator || '')}</td>
         <td class="center">${linkURL ? `<a href="${linkURL}" target="_blank" rel="noopener noreferrer" title="Open on MAM">🔗</a>` : ''}</td>
         <td>${escapeHtml(when)}</td>
-        <td>${escapeHtml(h.qb_status || '')}</td>
+        <td>${escapeHtml(h.torrent_status || '')}</td>
         <td></td>   <!-- Import -->
         <td></td>   <!-- Remove -->
       `;
@@ -261,9 +261,9 @@ importBtn.addEventListener('click', async () => {
   const goBtn       = expTd.querySelector('.imp-go');
   const st          = expTd.querySelector('.imp-status');
 
-  // load torrents in our qB category
+  // load torrents with our Transmission label
   try {
-    const r = await fetch('/qb/torrents');
+    const r = await fetch('/transmission/torrents');
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
     sel.innerHTML = '';
@@ -276,7 +276,7 @@ importBtn.addEventListener('click', async () => {
     if (!sel.children.length) {
       const opt = document.createElement('option');
       opt.disabled = true; opt.selected = true;
-      opt.textContent = 'No completed torrents in category';
+      opt.textContent = 'No completed torrents with app label';
       sel.appendChild(opt);
     }
   } catch (e) {
@@ -296,7 +296,6 @@ importBtn.addEventListener('click', async () => {
     goBtn.disabled = true;
     st.textContent = 'Importing…';
     try {
-      console.log('import payload', { author, title, hash, history_id: h.id });  // logging to troubleshoot mark-as-imported
       const r = await fetch('/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -321,8 +320,8 @@ importBtn.addEventListener('click', async () => {
       const statusTd = tr.children[5];
       if (statusTd) statusTd.textContent = 'imported';
 
-      // Bonus: refresh the torrents list so this one disappears if you clear/move category server-side
-      // (optional) const _ = await fetch('/qb/torrents'); // ignore result
+      // Bonus: refresh the torrents list so this one disappears after labels are cleared server-side
+      // (optional) const _ = await fetch('/transmission/torrents'); // ignore result
     } catch (e) {
       console.error(e);
       st.textContent = `Failed: ${e.message}`;
