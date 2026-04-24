@@ -310,6 +310,8 @@ async def search(payload: dict):
 
     out = []
     for item in raw.get("data", []):
+        is_freeleech = is_truthy(item.get("free")) or is_truthy(item.get("fl_vip"))
+        is_vip = is_truthy(item.get("vip")) or is_truthy(item.get("fl_vip"))
         out.append({
             "id": str(item.get("id") or item.get("tid") or ""),
             "title": item.get("title") or item.get("name"),
@@ -322,6 +324,8 @@ async def search(payload: dict):
             "catname": item.get("catname"),
             "added": item.get("added"),
             "dl": item.get("dl"),
+            "is_freeleech": is_freeleech,
+            "is_vip": is_vip,
         })
 
     return JSONResponse({

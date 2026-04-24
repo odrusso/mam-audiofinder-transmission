@@ -102,7 +102,7 @@ async function runSearch() {
       });
 
       tr.innerHTML = `
-        <td>${escapeHtml(it.title || '')}</td>
+        <td>${renderResultTitleCell(it)}</td>
         <td>${escapeHtml(it.author_info || '')}</td>
         <td>${escapeHtml(it.narrator_info || '')}</td>
         <td>${escapeHtml(it.format || '')}</td>
@@ -140,6 +140,27 @@ function truncateText(text, maxLen = 140) {
   const value = (text || '').trim();
   if (!value || value.length <= maxLen) return value;
   return `${value.slice(0, maxLen - 1)}…`;
+}
+
+function renderResultTitleCell(item) {
+  const badges = [];
+  if (item?.is_freeleech) {
+    badges.push('<span class="result-badge result-badge-free">Freeleech</span>');
+  }
+  if (item?.is_vip) {
+    badges.push('<span class="result-badge result-badge-vip">VIP</span>');
+  }
+
+  const badgesHtml = badges.length
+    ? `<div class="result-flags">${badges.join('')}</div>`
+    : '';
+
+  return `
+    <div class="result-title-cell">
+      <div class="result-title-main">${escapeHtml(item?.title || '')}</div>
+      ${badgesHtml}
+    </div>
+  `;
 }
 
 function renderHistoryStatusCell(item) {

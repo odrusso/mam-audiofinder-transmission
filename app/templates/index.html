@@ -16,6 +16,30 @@
     .center { text-align: center; }
     .import-form input, .import-form select { padding:4px 6px; }
     .import-form button { padding:4px 10px; }
+    .result-title-cell { display:flex; flex-direction:column; gap:0.35rem; }
+    .result-title-main { font-weight:600; }
+    .result-flags { display:flex; gap:0.35rem; flex-wrap:wrap; }
+    .result-badge {
+      display:inline-flex;
+      align-items:center;
+      padding:0.15rem 0.45rem;
+      border:1px solid transparent;
+      border-radius:999px;
+      font-size:0.72rem;
+      font-weight:700;
+      letter-spacing:0.02em;
+      text-transform:uppercase;
+    }
+    .result-badge-free {
+      color:#9be5aa;
+      background:rgba(118, 214, 136, 0.14);
+      border-color:rgba(118, 214, 136, 0.32);
+    }
+    .result-badge-vip {
+      color:#ffd978;
+      background:rgba(255, 207, 106, 0.14);
+      border-color:rgba(255, 207, 106, 0.32);
+    }
   </style>
 {% endblock %}
 
