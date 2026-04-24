@@ -1,4 +1,6 @@
-import os, json, re, base64
+import os, json, re, base64, asyncio, logging
+from pathlib import Path
+import shutil
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -8,10 +10,13 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from datetime import datetime
 
+logger = logging.getLogger("mam_audiofinder")
+
 # ---------------------------- Config ----------------------------
 CONFIG_PATH = os.getenv("APP_CONFIG_PATH", "/data/config.json")
 DOWNLOADS_DIR = "/downloads"
 LIBRARY_DIR = "/library"
+DEFAULT_AUTO_IMPORT_POLL_INTERVAL = 30
 
 def load_json_config() -> dict:
     try:
@@ -23,9 +28,20 @@ def load_json_config() -> dict:
     except Exception:
         return {}
 
+def is_truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+def parse_positive_int(value, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
 def is_setup_disabled() -> bool:
-    val = os.getenv("DISABLE_SETUP", "")
-    return str(val).strip().lower() in ("1", "true", "yes", "on")
+    return is_truthy(os.getenv("DISABLE_SETUP", ""))
 
 def build_mam_cookie(raw: str) -> str:
     raw = (raw or "").strip()
@@ -64,6 +80,12 @@ class Settings:
         self.LIBRARY_DIR = LIBRARY_DIR
 
         self.UMASK = cfg.get("UMASK") or os.getenv("UMASK")
+        auto_import_enabled = cfg["AUTO_IMPORT_ENABLED"] if "AUTO_IMPORT_ENABLED" in cfg else os.getenv("AUTO_IMPORT_ENABLED", "")
+        self.AUTO_IMPORT_ENABLED = is_truthy(auto_import_enabled)
+        self.AUTO_IMPORT_POLL_INTERVAL = parse_positive_int(
+            os.getenv("AUTO_IMPORT_POLL_INTERVAL"),
+            DEFAULT_AUTO_IMPORT_POLL_INTERVAL,
+        )
 
 settings = Settings()
 
@@ -78,21 +100,43 @@ if _um:
 # ---------------------------- DB ----------------------------
 # /data should be a volume/bind mount
 engine = create_engine("sqlite:////data/history.db", future=True)
-with engine.begin() as cx:
-    cx.execute(text("""
-        CREATE TABLE IF NOT EXISTS history (
-          id INTEGER PRIMARY KEY,
-          mam_id   TEXT,
-          title    TEXT,
-          author   TEXT,
-          narrator TEXT,
-          dl       TEXT,
-          added_at TEXT DEFAULT (datetime('now')),
-          imported_at TEXT,
-          torrent_status TEXT,
-          torrent_hash   TEXT
-        )
-    """))
+
+def utcnow_str() -> str:
+    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+def ensure_history_schema() -> None:
+    with engine.begin() as cx:
+        cx.execute(text("""
+            CREATE TABLE IF NOT EXISTS history (
+              id INTEGER PRIMARY KEY,
+              mam_id   TEXT,
+              title    TEXT,
+              author   TEXT,
+              narrator TEXT,
+              dl       TEXT,
+              added_at TEXT DEFAULT (datetime('now')),
+              imported_at TEXT,
+              torrent_status TEXT,
+              torrent_hash   TEXT
+            )
+        """))
+        cols = {row["name"] for row in cx.execute(text("PRAGMA table_info(history)")).mappings()}
+        if "status_detail" not in cols:
+            cx.execute(text("ALTER TABLE history ADD COLUMN status_detail TEXT"))
+        if "status_updated_at" not in cols:
+            cx.execute(text("ALTER TABLE history ADD COLUMN status_updated_at TEXT"))
+        cx.execute(text("""
+            UPDATE history
+            SET torrent_status = 'added'
+            WHERE torrent_status IS NULL OR trim(torrent_status) = ''
+        """))
+        cx.execute(text("""
+            UPDATE history
+            SET status_updated_at = COALESCE(status_updated_at, imported_at, added_at)
+            WHERE status_updated_at IS NULL
+        """))
+
+ensure_history_schema()
 
 def needs_setup() -> bool:
     return not settings.MAM_COOKIE
@@ -103,6 +147,7 @@ def setup_context(request: Request) -> dict:
         "transmission_url": settings.TRANSMISSION_URL,
         "transmission_user": settings.TRANSMISSION_USER,
         "transmission_label": settings.TRANSMISSION_LABEL,
+        "auto_import_enabled": settings.AUTO_IMPORT_ENABLED,
     }
 
 class SetupPayload(BaseModel):
@@ -111,9 +156,12 @@ class SetupPayload(BaseModel):
     transmission_user: str | None = None
     transmission_pass: str | None = None
     transmission_label: str | None = None
+    auto_import_enabled: bool | None = None
 
 # ---------------------------- App ----------------------------
 app = FastAPI(title="MAM Audiobook Finder", version="0.3.0")
+app.state.auto_import_task = None
+app.state.auto_import_stop = None
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -165,6 +213,8 @@ async def api_setup(body: SetupPayload):
         cfg["TRANSMISSION_PASS"] = body.transmission_pass
     if body.transmission_label and body.transmission_label.strip():
         cfg["TRANSMISSION_LABEL"] = body.transmission_label.strip()
+    if body.auto_import_enabled is not None:
+        cfg["AUTO_IMPORT_ENABLED"] = bool(body.auto_import_enabled)
 
     # Persist config
     try:
@@ -177,6 +227,7 @@ async def api_setup(body: SetupPayload):
         raise HTTPException(status_code=500, detail=f"Failed to write config: {e}")
 
     settings.reload()
+    await reconcile_auto_import_task()
     return {"ok": True}
 
 # ---------------------------- Search ----------------------------
@@ -323,10 +374,33 @@ def torrent_hash_from_add_result(args: dict) -> str | None:
     return torrent.get("hashString")
 
 def insert_history(mam_id: str, title: str, author: str, narrator: str, dl: str, torrent_hash: str | None):
+    added_at = utcnow_str()
     with engine.begin() as cx:
         cx.execute(text("""
-            INSERT INTO history (mam_id, title, author, narrator, dl, torrent_status, torrent_hash, added_at)
-            VALUES (:mam_id, :title, :author, :narrator, :dl, :torrent_status, :torrent_hash, :added_at)
+            INSERT INTO history (
+                mam_id,
+                title,
+                author,
+                narrator,
+                dl,
+                torrent_status,
+                torrent_hash,
+                added_at,
+                status_detail,
+                status_updated_at
+            )
+            VALUES (
+                :mam_id,
+                :title,
+                :author,
+                :narrator,
+                :dl,
+                :torrent_status,
+                :torrent_hash,
+                :added_at,
+                :status_detail,
+                :status_updated_at
+            )
         """), {
             "mam_id": mam_id,
             "title": title,
@@ -335,7 +409,9 @@ def insert_history(mam_id: str, title: str, author: str, narrator: str, dl: str,
             "dl": dl,
             "torrent_status": "added",
             "torrent_hash": torrent_hash,
-            "added_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "added_at": added_at,
+            "status_detail": None,
+            "status_updated_at": added_at,
         })
 
 # ---------------------------- Add-to-Transmission ----------------------------
@@ -418,7 +494,19 @@ async def add_to_transmission(body: AddBody):
 def history():
     with engine.begin() as cx:
         rows = cx.execute(text("""
-            SELECT id, mam_id, title, author, narrator, dl, torrent_hash, added_at, torrent_status
+            SELECT
+                id,
+                mam_id,
+                title,
+                author,
+                narrator,
+                dl,
+                torrent_hash,
+                added_at,
+                imported_at,
+                torrent_status,
+                status_detail,
+                status_updated_at
             FROM history
             ORDER BY id DESC
             LIMIT 200
@@ -432,8 +520,7 @@ def delete_history(row_id: int):
     return {"ok": True}
     
 # ---------------------------- List Importable ----------------------------
-@app.get("/transmission/torrents")
-async def transmission_torrents():
+async def list_completed_torrents() -> list[dict]:
     async with httpx.AsyncClient(timeout=30) as c:
         args = await transmission_rpc(c, "torrent-get", {
             "fields": [
@@ -477,12 +564,13 @@ async def transmission_torrents():
                 "size": t.get("totalSize"),
                 "added_on": t.get("addedDate"),
             })
-        return {"items": out}
+        return out
+
+@app.get("/transmission/torrents")
+async def transmission_torrents():
+    return {"items": await list_completed_torrents()}
         
 # ---------------------------- Perform Import ----------------------------
-
-from pathlib import Path
-import shutil
 
 def sanitize(name: str) -> str:
     s = name.strip().replace(":", " -").replace("\\", "﹨").replace("/", "﹨")
@@ -502,18 +590,132 @@ def copy_one(src: Path, dst: Path):
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst)
 
+def clean_status_detail(detail: str | None) -> str | None:
+    text_value = re.sub(r"\s+", " ", (detail or "").strip())
+    return text_value[:500] or None
+
+def update_history_status(history_id: int, status: str, detail: str | None = None, imported_at: str | None = None):
+    ts = utcnow_str()
+    with engine.begin() as cx:
+        cx.execute(text("""
+            UPDATE history
+            SET
+                torrent_status = :status,
+                status_detail = :detail,
+                status_updated_at = :status_updated_at,
+                imported_at = COALESCE(:imported_at, imported_at)
+            WHERE id = :id
+        """), {
+            "id": history_id,
+            "status": status,
+            "detail": clean_status_detail(detail),
+            "status_updated_at": ts,
+            "imported_at": imported_at,
+        })
+
+def mark_history_imported(history_id: int | None, torrent_hash: str):
+    ts = utcnow_str()
+    with engine.begin() as cx:
+        if history_id is not None:
+            cx.execute(text("""
+                UPDATE history
+                SET
+                    torrent_status = 'imported',
+                    status_detail = NULL,
+                    status_updated_at = :ts,
+                    imported_at = :ts
+                WHERE id = :id
+            """), {"ts": ts, "id": history_id})
+        else:
+            cx.execute(text("""
+                UPDATE history
+                SET
+                    torrent_status = 'imported',
+                    status_detail = NULL,
+                    status_updated_at = :ts,
+                    imported_at = :ts
+                WHERE torrent_hash = :torrent_hash
+            """), {"ts": ts, "torrent_hash": torrent_hash})
+
+def mark_history_failed(history_id: int | None, torrent_hash: str, detail: str):
+    with engine.begin() as cx:
+        params = {"detail": clean_status_detail(detail)}
+        if history_id is not None:
+            params["id"] = history_id
+            cx.execute(text("""
+                UPDATE history
+                SET
+                    torrent_status = 'import_failed',
+                    status_detail = :detail,
+                    status_updated_at = :ts
+                WHERE id = :id
+            """), {"ts": utcnow_str(), **params})
+        else:
+            params["torrent_hash"] = torrent_hash
+            cx.execute(text("""
+                UPDATE history
+                SET
+                    torrent_status = 'import_failed',
+                    status_detail = :detail,
+                    status_updated_at = :ts
+                WHERE torrent_hash = :torrent_hash
+            """), {"ts": utcnow_str(), **params})
+
+def get_auto_import_candidates(completed_hashes: set[str]) -> list[dict]:
+    if not completed_hashes:
+        return []
+    with engine.begin() as cx:
+        rows = cx.execute(text("""
+            SELECT id, title, author, torrent_hash, torrent_status
+            FROM history
+            WHERE
+                torrent_hash IS NOT NULL
+                AND trim(torrent_hash) != ''
+                AND (
+                    torrent_status IS NULL
+                    OR torrent_status NOT IN ('imported', 'import_failed', 'importing')
+                )
+            ORDER BY id ASC
+        """)).mappings().all()
+    out = []
+    seen_hashes = set()
+    for row in rows:
+        torrent_hash = (row.get("torrent_hash") or "").strip()
+        if not torrent_hash or torrent_hash not in completed_hashes or torrent_hash in seen_hashes:
+            continue
+        seen_hashes.add(torrent_hash)
+        out.append(dict(row))
+    return out
+
+def validate_download_path(p: str) -> str:
+    p = (p or "").strip()
+    if not p:
+        return p
+    downloads_dir = settings.DOWNLOADS_DIR.rstrip("/") or "/"
+    if p == downloads_dir or p.startswith(downloads_dir + "/"):
+        return p
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"Transmission reports downloadDir '{p}', but this app expects completed "
+            f"downloads under {settings.DOWNLOADS_DIR}. Mount the same downloads "
+            f"directory at {settings.DOWNLOADS_DIR} in both containers."
+        ),
+    )
+
+def is_transient_auto_import_error(exc: HTTPException) -> bool:
+    detail = str(exc.detail)
+    return exc.status_code == 502 and detail.startswith("Transmission")
+
 class ImportBody(BaseModel):
     author: str
     title: str
     hash: str
     history_id: int | None = None
 
-@app.post("/import")
-async def do_import(body: ImportBody):
-    author = sanitize(body.author)
-    title = sanitize(body.title)
-    h = body.hash
-
+async def import_torrent_to_library(author: str, title: str, h: str) -> str:
+    author = sanitize(author)
+    title = sanitize(title)
     # Query Transmission for files and download directory.
     async with httpx.AsyncClient(timeout=30) as c:
         args = await transmission_rpc(c, "torrent-get", {
@@ -530,23 +732,6 @@ async def do_import(body: ImportBody):
         if not download_dir:
             raise HTTPException(status_code=404, detail="Torrent download directory not found")
         existing_labels = info.get("labels") or []
-
-    # Transmission and this app must share the same static in-container mount.
-    def validate_download_path(p: str) -> str:
-        p = (p or "").strip()
-        if not p:
-            return p
-        downloads_dir = settings.DOWNLOADS_DIR.rstrip("/") or "/"
-        if p == downloads_dir or p.startswith(downloads_dir + "/"):
-            return p
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Transmission reports downloadDir '{p}', but this app expects completed "
-                f"downloads under {settings.DOWNLOADS_DIR}. Mount the same downloads "
-                f"directory at {settings.DOWNLOADS_DIR} in both containers."
-            ),
-        )
 
     source_dir = Path(validate_download_path(download_dir))
 
@@ -600,18 +785,106 @@ async def do_import(body: ImportBody):
             # Best effort: don't fail the import if this errors.
             pass
 
-    # --- mark history as imported ---
-    with engine.begin() as cx:
-        if body.history_id is not None:
-            cx.execute(
-                text("UPDATE history SET torrent_status='imported', imported_at=:ts WHERE id=:id"),
-                {"ts": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "id": body.history_id},
-            )
-        else:
-            # Fallback: try by torrent hash if we have it
-            cx.execute(
-                text("UPDATE history SET torrent_status='imported', imported_at=:ts WHERE torrent_hash=:h"),
-                {"ts": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "h": body.hash},
-            )
+    return str(dest_dir)
 
-    return {"ok": True, "dest": str(dest_dir)}
+@app.post("/import")
+async def do_import(body: ImportBody):
+    history_id = body.history_id
+    if history_id is not None:
+        update_history_status(history_id, "importing")
+
+    try:
+        dest = await import_torrent_to_library(body.author, body.title, body.hash)
+    except HTTPException as exc:
+        if history_id is not None:
+            mark_history_failed(history_id, body.hash, str(exc.detail))
+        raise
+    except Exception as exc:
+        logger.exception("Import failed for torrent %s", body.hash)
+        detail = f"Import failed: {exc}"
+        if history_id is not None:
+            mark_history_failed(history_id, body.hash, detail)
+        raise HTTPException(status_code=500, detail=detail)
+
+    mark_history_imported(history_id, body.hash)
+    return {"ok": True, "dest": dest}
+
+async def auto_import_cycle():
+    completed = await list_completed_torrents()
+    completed_hashes = {item.get("hash") for item in completed if item.get("hash")}
+    for row in get_auto_import_candidates(completed_hashes):
+        history_id = row["id"]
+        torrent_hash = (row.get("torrent_hash") or "").strip()
+        author = (row.get("author") or "").strip()
+        title = (row.get("title") or "").strip()
+
+        if not author or not title:
+            mark_history_failed(history_id, torrent_hash, "History row is missing author/title; use manual import.")
+            continue
+
+        update_history_status(history_id, "importing")
+
+        try:
+            await import_torrent_to_library(author, title, torrent_hash)
+        except HTTPException as exc:
+            if is_transient_auto_import_error(exc):
+                update_history_status(history_id, "added")
+                logger.warning("Auto-import skipped for history row %s: %s", history_id, exc.detail)
+            else:
+                mark_history_failed(history_id, torrent_hash, str(exc.detail))
+                logger.warning("Auto-import failed for history row %s: %s", history_id, exc.detail)
+            continue
+        except Exception as exc:
+            logger.exception("Unexpected auto-import failure for history row %s", history_id)
+            mark_history_failed(history_id, torrent_hash, f"Import failed: {exc}")
+            continue
+
+        mark_history_imported(history_id, torrent_hash)
+        logger.info("Auto-imported history row %s", history_id)
+
+async def auto_import_loop(stop_event: asyncio.Event):
+    logger.info("Auto-import poller started with %ss interval", settings.AUTO_IMPORT_POLL_INTERVAL)
+    while not stop_event.is_set():
+        try:
+            await auto_import_cycle()
+        except HTTPException as exc:
+            logger.warning("Auto-import cycle skipped: %s", exc.detail)
+        except Exception:
+            logger.exception("Auto-import poller cycle failed")
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=settings.AUTO_IMPORT_POLL_INTERVAL)
+        except asyncio.TimeoutError:
+            continue
+    logger.info("Auto-import poller stopped")
+
+async def stop_auto_import_task():
+    task = getattr(app.state, "auto_import_task", None)
+    stop_event = getattr(app.state, "auto_import_stop", None)
+    if stop_event is not None:
+        stop_event.set()
+    if task is not None:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    app.state.auto_import_task = None
+    app.state.auto_import_stop = None
+
+async def reconcile_auto_import_task():
+    task = getattr(app.state, "auto_import_task", None)
+    if settings.AUTO_IMPORT_ENABLED:
+        if task is None or task.done():
+            stop_event = asyncio.Event()
+            app.state.auto_import_stop = stop_event
+            app.state.auto_import_task = asyncio.create_task(auto_import_loop(stop_event))
+    elif task is not None:
+        await stop_auto_import_task()
+
+@app.on_event("startup")
+async def startup_event():
+    await reconcile_auto_import_task()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await stop_auto_import_task()

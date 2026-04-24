@@ -136,6 +136,29 @@ function escapeHtml(s) {
     .replaceAll('>', '&gt;');
 }
 
+function truncateText(text, maxLen = 140) {
+  const value = (text || '').trim();
+  if (!value || value.length <= maxLen) return value;
+  return `${value.slice(0, maxLen - 1)}…`;
+}
+
+function renderHistoryStatusCell(item) {
+  const status = item?.torrent_status || '';
+  const detail = item?.status_detail || '';
+  const classes = [];
+  if (status === 'import_failed') classes.push('history-status-failed');
+  if (status === 'importing') classes.push('history-status-active');
+
+  const statusHtml = classes.length
+    ? `<span class="${classes.join(' ')}">${escapeHtml(status)}</span>`
+    : escapeHtml(status);
+  const detailHtml = detail
+    ? `<div class="history-status-detail">${escapeHtml(truncateText(detail))}</div>`
+    : '';
+
+  return `${statusHtml}${detailHtml}`;
+}
+
 function formatSize(sz) {
   if (sz == null || sz === '') return '';
   const n = Number(sz);
@@ -287,10 +310,17 @@ async function openImportPanel(historyItem, row) {
       goBtn.textContent = 'Imported';
 
       const statusTd = row.children[5];
-      if (statusTd) statusTd.textContent = 'imported';
+      if (statusTd) statusTd.innerHTML = renderHistoryStatusCell({ torrent_status: 'imported' });
     } catch (e) {
       console.error(e);
       status.textContent = `Failed: ${e.message}`;
+      const statusTd = row.children[5];
+      if (statusTd) {
+        statusTd.innerHTML = renderHistoryStatusCell({
+          torrent_status: 'import_failed',
+          status_detail: e.message || 'Import failed'
+        });
+      }
       goBtn.disabled = false;
     }
   });
@@ -315,7 +345,8 @@ async function loadHistory() {
       const linkURL = item.mam_id ? `https://www.myanonamouse.net/t/${encodeURIComponent(item.mam_id)}` : '';
 
       const importBtn = document.createElement('button');
-      importBtn.textContent = 'Import';
+      importBtn.textContent = item.torrent_status === 'importing' ? 'Importing...' : 'Import';
+      importBtn.disabled = item.torrent_status === 'importing';
       importBtn.addEventListener('click', async () => {
         await openImportPanel(item, tr);
       });
@@ -341,7 +372,7 @@ async function loadHistory() {
         <td>${escapeHtml(item.narrator || '')}</td>
         <td class="center">${linkURL ? `<a href="${linkURL}" target="_blank" rel="noopener noreferrer" title="Open on MAM">🔗</a>` : ''}</td>
         <td>${escapeHtml(when)}</td>
-        <td>${escapeHtml(item.torrent_status || '')}</td>
+        <td>${renderHistoryStatusCell(item)}</td>
         <td></td>
         <td></td>
       `;

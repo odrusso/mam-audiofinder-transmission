@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
       transmission_user: document.getElementById('transmission_user')?.value.trim() || '',
       transmission_pass: document.getElementById('transmission_pass')?.value || '',
       transmission_label: document.getElementById('transmission_label')?.value.trim() || '',
+      auto_import_enabled: document.getElementById('auto_import_enabled')?.checked || false,
     };
 
     statusEl.textContent = 'Saving…';

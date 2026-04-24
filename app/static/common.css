@@ -197,6 +197,22 @@ tbody tr:last-child td {
   color: var(--muted);
 }
 
+.history-status-failed {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.history-status-active {
+  color: var(--accent);
+}
+
+.history-status-detail {
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: normal;
+}
+
 @media (max-width: 720px) {
   body {
     margin: 1rem;
