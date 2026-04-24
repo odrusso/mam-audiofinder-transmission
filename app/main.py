@@ -731,7 +731,6 @@ async def import_torrent_to_library(author: str, title: str, h: str) -> str:
         download_dir = (info.get("downloadDir") or "").rstrip("/")
         if not download_dir:
             raise HTTPException(status_code=404, detail="Torrent download directory not found")
-        existing_labels = info.get("labels") or []
 
     source_dir = Path(validate_download_path(download_dir))
 
@@ -768,22 +767,6 @@ async def import_torrent_to_library(author: str, title: str, h: str) -> str:
 
     if copied == 0:
         raise HTTPException(status_code=400, detail="No importable files found")
-
-    # --- post-import: remove app labels so the torrent disappears from our list ---
-    if h:
-        remaining_labels = [
-            label for label in existing_labels
-            if label != settings.TRANSMISSION_LABEL and not str(label).startswith("mamid=")
-        ]
-        try:
-            async with httpx.AsyncClient(timeout=15) as c2:
-                await transmission_rpc(c2, "torrent-set", {
-                    "ids": [h],
-                    "labels": remaining_labels,
-                })
-        except Exception:
-            # Best effort: don't fail the import if this errors.
-            pass
 
     return str(dest_dir)
 
