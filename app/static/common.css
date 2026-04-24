@@ -1,19 +1,22 @@
 :root {
   color-scheme: dark;
-  --bg: #0f1318;
-  --bg-elevated: #171d25;
-  --bg-elevated-strong: #1e2631;
-  --bg-field: #131922;
-  --border: #2f3947;
-  --border-subtle: #242d39;
-  --text: #eef3f8;
-  --text-soft: #c3cbd6;
-  --muted: #97a3b2;
-  --accent: #8cc7ff;
-  --accent-strong: #5daaf2;
-  --accent-contrast: #08111b;
-  --danger: #ff8d8d;
-  --shadow: rgba(0, 0, 0, 0.35);
+  --bg: #0c0f13;
+  --bg-page: #10151b;
+  --bg-elevated: #171c23;
+  --bg-elevated-strong: #1d242d;
+  --bg-field: #0f141b;
+  --border: #303945;
+  --border-subtle: #222a34;
+  --text: #f1f5f9;
+  --text-soft: #c7d0da;
+  --muted: #8f9ba8;
+  --accent: #9cd3ff;
+  --accent-strong: #67b8f7;
+  --accent-contrast: #06111b;
+  --danger: #ff9999;
+  --success: #8fdda1;
+  --warning: #ffd779;
+  --shadow: rgba(0, 0, 0, 0.42);
 }
 
 * {
@@ -21,24 +24,27 @@
 }
 
 html {
-  background: var(--bg);
+  background: linear-gradient(180deg, var(--bg-page) 0%, var(--bg) 78%);
 }
 
 body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  margin: 2rem;
-  min-height: calc(100vh - 4rem);
-  background:
-    radial-gradient(circle at top, rgba(93, 170, 242, 0.16), transparent 34%),
-    linear-gradient(180deg, #11161d 0%, var(--bg) 45%, #0b0f14 100%);
+  width: min(100% - 40px, 1180px);
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 28px 0;
+  background: transparent;
   color: var(--text);
+  line-height: 1.45;
 }
 
 header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 h1,
@@ -50,6 +56,7 @@ h3 {
 
 h1 {
   font-size: 1.4rem;
+  line-height: 1.2;
   margin-bottom: 0;
 }
 
@@ -64,6 +71,8 @@ span {
 
 a {
   color: var(--accent);
+  text-decoration-color: rgba(156, 211, 255, 0.45);
+  text-underline-offset: 0.18em;
 }
 
 a:hover {
@@ -72,38 +81,41 @@ a:hover {
 
 code {
   padding: 0.12rem 0.35rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.035);
   color: var(--text-soft);
 }
 
 .logo {
-  height: 1.6rem;
+  height: 1.75rem;
   width: auto;
 }
 
 .card {
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1rem;
-  background: rgba(23, 29, 37, 0.92);
-  box-shadow: 0 14px 32px var(--shadow);
+  border-radius: 8px;
+  padding: 1.1rem;
+  background: var(--bg-elevated);
+  box-shadow: 0 16px 34px var(--shadow);
 }
 
 button {
+  min-height: 2.55rem;
   padding: 0.6rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: linear-gradient(180deg, #243242 0%, #1a2430 100%);
+  border-radius: 8px;
+  background: #202a35;
   color: var(--text);
   cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+  font-weight: 600;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
 button:hover:not(:disabled) {
-  background: linear-gradient(180deg, #2b3d51 0%, #203042 100%);
-  border-color: #49617c;
+  background: #273545;
+  border-color: #506375;
+  box-shadow: 0 0 0 3px rgba(156, 211, 255, 0.08);
 }
 
 button:active:not(:disabled) {
@@ -120,11 +132,12 @@ input[type="password"],
 textarea,
 select {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   font-family: inherit;
   font-size: 0.95rem;
   background: var(--bg-field);
   color: var(--text);
+  min-height: 2.55rem;
 }
 
 input[type="text"]::placeholder,
@@ -144,28 +157,45 @@ select:focus {
 
 table {
   width: 100%;
+  min-width: 760px;
   border-collapse: separate;
   border-spacing: 0;
   margin-top: 1rem;
-  background: rgba(17, 22, 29, 0.84);
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 14px 32px var(--shadow);
 }
 
 thead {
-  background: rgba(255, 255, 255, 0.03);
+  background: #121820;
 }
 
 th,
 td {
-  padding: 0.5rem;
+  padding: 0.65rem 0.7rem;
   text-align: left;
   border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
+th {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+td {
+  color: var(--text);
+  font-size: 0.92rem;
 }
 
 tbody tr:hover {
-  background: rgba(140, 199, 255, 0.05);
+  background: rgba(156, 211, 255, 0.055);
 }
 
 tbody tr:last-child td {
@@ -179,13 +209,15 @@ tbody tr:last-child td {
 
 .app-footer {
   margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .import-panel {
-  padding: 8px;
-  margin: 6px 0;
+  padding: 0.8rem;
+  margin: 0.4rem 0;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--bg-elevated-strong);
 }
 
@@ -208,6 +240,7 @@ tbody tr:last-child td {
 
 .history-status-active {
   color: var(--accent);
+  font-weight: 600;
 }
 
 .history-status-detail {
@@ -219,11 +252,68 @@ tbody tr:last-child td {
 
 @media (max-width: 720px) {
   body {
-    margin: 1rem;
-    min-height: calc(100vh - 2rem);
+    width: min(100% - 24px, 1180px);
+    padding: 18px 0;
   }
 
   header {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem 0.7rem;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.85rem;
+  }
+
+  header .muted {
+    grid-column: 1 / -1;
+    line-height: 1.35;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  .logo {
+    height: 1.55rem;
+  }
+
+  .card {
+    padding: 0.9rem;
+  }
+
+  button,
+  input[type="text"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 1rem;
+    min-height: 2.75rem;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  code,
+  a {
+    overflow-wrap: anywhere;
+  }
+
+  .import-panel-row {
+    align-items: stretch;
+  }
+
+  .import-panel-row > span {
+    display: none;
+  }
+
+  .import-panel-row input,
+  .import-panel-row select,
+  .import-panel-row button {
+    width: 100%;
+    min-width: 0 !important;
   }
 }
