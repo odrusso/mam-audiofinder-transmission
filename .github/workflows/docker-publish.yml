@@ -4,24 +4,92 @@ on:
   pull_request:
   push:
     branches:
+      - main
       - master
-    tags:
-      - "v*"
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
 
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   docker:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine build version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          short_sha="${GITHUB_SHA::7}"
+          is_release=false
+          create_tag=false
+          major_minor="0.0"
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            current_tag="$(
+              git tag --points-at HEAD \
+                | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                | sort -V \
+                | tail -n 1 || true
+            )"
+
+            if [ -n "${current_tag}" ]; then
+              tag="${current_tag}"
+              version="${tag#v}"
+            else
+              latest_tag="$(
+                git tag --list 'v[0-9]*.[0-9]*.[0-9]*' \
+                  | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                  | sort -V \
+                  | tail -n 1 || true
+              )"
+              latest_version="${latest_tag#v}"
+              if [ -z "${latest_version}" ]; then
+                latest_version="0.0.0"
+              fi
+
+              IFS=. read -r major minor patch <<< "${latest_version}"
+              patch=$((patch + 1))
+              version="${major}.${minor}.${patch}"
+              tag="v${version}"
+              create_tag=true
+            fi
+
+            IFS=. read -r major minor patch <<< "${version}"
+            major_minor="${major}.${minor}"
+            is_release=true
+          else
+            safe_ref="$(
+              printf '%s' "${GITHUB_REF_NAME:-manual}" \
+                | tr '[:upper:]/' '[:lower:]-' \
+                | tr -cd 'a-z0-9_.-'
+            )"
+            if [ -z "${safe_ref}" ]; then
+              safe_ref="manual"
+            fi
+            version="snapshot-${safe_ref}-${short_sha}"
+            tag="${version}"
+          fi
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "major_minor=${major_minor}" >> "${GITHUB_OUTPUT}"
+          echo "is_release=${is_release}" >> "${GITHUB_OUTPUT}"
+          echo "create_tag=${create_tag}" >> "${GITHUB_OUTPUT}"
 
       - name: Prepare image name
         id: prep
@@ -47,9 +115,14 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ steps.prep.outputs.image }}
           tags: |
             type=ref,event=branch
-            type=ref,event=tag
-            type=sha
+            type=ref,event=pr
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ steps.version.outputs.is_release }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.is_release }}
+            type=raw,value=${{ steps.version.outputs.major_minor }},enable=${{ steps.version.outputs.is_release }}
+            type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Build and push image
         uses: docker/build-push-action@v6
@@ -59,5 +132,15 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create release tag
+        if: steps.version.outputs.create_tag == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "refs/tags/${{ steps.version.outputs.tag }}"

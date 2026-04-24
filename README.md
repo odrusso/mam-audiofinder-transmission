@@ -39,7 +39,7 @@ The checked-in `docker-compose.yml` supports both local source builds and the pu
    git clone https://github.com/odrusso/mam-audiofinder-transmission.git
    cd mam-audiofinder-transmission
    ```
-2. Copy `.env.example` → `.env` and fill in the small set of runtime values:
+2. Copy `env.example` → `.env` and fill in the small set of runtime values:
    - App port and state directory (`APP_PORT`, `DATA_DIR`)
    - Container user/permissions (`PUID`, `PGID`, `UMASK`)
 3. Create the host state directory from `DATA_DIR` and make sure it is writable by `PUID:PGID`.
@@ -62,11 +62,19 @@ docker compose pull
 docker compose up -d
 ```
 
+By default Compose uses `IMAGE_TAG=latest`. To pin a specific published release, set `IMAGE_TAG` in `.env`, for example:
+
+```bash
+IMAGE_TAG=0.3.0
+```
+
 To confirm the app is running, open the UI or check the health endpoint on your chosen app port:
 
 ```bash
 curl http://localhost:8008/health
 ```
+
+The health response includes the running app version.
 
 ## Environment Variables
 
@@ -77,6 +85,7 @@ Runtime/env-only values:
 | Variable          | Description                                                                 |
 |-------------------|-----------------------------------------------------------------------------|
 | `APP_PORT`        | Host port that exposes the app's web UI (used in `docker-compose.yml`)      |
+| `IMAGE_TAG`       | Published GHCR image tag for Compose pulls, default `latest`                |
 | `DATA_DIR`        | Host path where this app stores `/data` state, including config and SQLite  |
 | `PUID`            | Container user ID (for file permissions, default `99`)                      |
 | `PGID`            | Container group ID (for file permissions, default `100`)                    |
@@ -139,6 +148,21 @@ volumes:
   - /mnt/disk1/torrents:/downloads
   - /mnt/disk2/audiobooks:/library
 ```
+
+## Versioning and releases
+
+The app version is not stored in source. GitHub Actions generates it when code is pushed to the default branch.
+
+On each push to `main` or `master`, the publish workflow finds the latest stable `vX.Y.Z` git tag, increments the patch number, creates the next tag on that commit, and builds the image with that generated version. If no stable release tags exist yet, the first release is `0.0.1`.
+
+The GHCR workflow publishes these image tags:
+
+- `latest` for the default branch build
+- `main` or `master` for the branch ref
+- `sha-<commit>` for commit-pinned deploys
+- `vX.Y.Z`, `X.Y.Z`, and `X.Y` for release tags
+
+Published images receive `APP_VERSION` at build time. Local source runs that were not built by CI report `unknown`.
 
 
 This project was created to scratch a personal itch, and was almost entirely vibe-coded with OpenAI Codex. I will probably not be developing it further, looking at issues, or accepting pull requests.

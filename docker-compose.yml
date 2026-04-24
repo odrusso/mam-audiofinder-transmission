@@ -2,7 +2,7 @@ services:
   mam-audiofinder:
     # `up --build` uses the checked-out source; `pull` can use the published GHCR image.
     build: .
-    image: ghcr.io/odrusso/mam-audiofinder-transmission:latest
+    image: ghcr.io/odrusso/mam-audiofinder-transmission:${IMAGE_TAG:-latest}
     container_name: mam-audiofinder
     ports:
       - "${APP_PORT}:8080"

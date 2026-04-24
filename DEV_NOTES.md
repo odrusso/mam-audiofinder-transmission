@@ -34,14 +34,14 @@
 
 ## Release Notes / Checklist (GHCR)
 
-- Build and tag image from repo root:
-  - `docker build -t ghcr.io/raygan/mam-audiofinder:0.6 -t ghcr.io/raygan/mam-audiofinder:latest .`
-- Login to GHCR (once per machine):
-  - `echo "$GHCR_PAT" | docker login ghcr.io -u raygan --password-stdin`
-- Push tags:
-  - `docker push ghcr.io/raygan/mam-audiofinder:0.6`
-  - `docker push ghcr.io/raygan/mam-audiofinder:latest`
-- Consumers update via:
+- Push to `main` or `master`; GitHub Actions auto-creates the next patch `vX.Y.Z` tag from the latest stable release tag.
+- If no stable release tags exist yet, the first generated release is `v0.0.1`.
+- GitHub Actions builds the image with generated `APP_VERSION` and publishes GHCR tags:
+  - `latest` for the default branch
+  - `main` or `master` for the branch ref
+  - `sha-<commit>` for commit-pinned deploys
+  - `vX.Y.Z`, `X.Y.Z`, and `X.Y` for release tags
+- Consumers update via either a pinned `IMAGE_TAG` or:
   - `docker compose pull && docker compose up -d`
 
 ## Possible Next Steps

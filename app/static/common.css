@@ -177,6 +177,10 @@ tbody tr:last-child td {
   font-size: 0.9rem;
 }
 
+.app-footer {
+  margin-top: 1.5rem;
+}
+
 .import-panel {
   padding: 8px;
   margin: 6px 0;

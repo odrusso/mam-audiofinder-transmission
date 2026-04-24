@@ -18,6 +18,8 @@ DOWNLOADS_DIR = "/downloads"
 LIBRARY_DIR = "/library"
 DEFAULT_AUTO_IMPORT_POLL_INTERVAL = 30
 
+APP_VERSION = os.getenv("APP_VERSION", "unknown")
+
 def load_json_config() -> dict:
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -144,6 +146,7 @@ def needs_setup() -> bool:
 def setup_context(request: Request) -> dict:
     return {
         "request": request,
+        "app_version": APP_VERSION,
         "transmission_url": settings.TRANSMISSION_URL,
         "transmission_user": settings.TRANSMISSION_USER,
         "transmission_label": settings.TRANSMISSION_LABEL,
@@ -159,7 +162,7 @@ class SetupPayload(BaseModel):
     auto_import_enabled: bool | None = None
 
 # ---------------------------- App ----------------------------
-app = FastAPI(title="MAM Audiobook Finder", version="0.3.0")
+app = FastAPI(title="MAM Audiobook Finder", version=APP_VERSION)
 app.state.auto_import_task = None
 app.state.auto_import_stop = None
 
@@ -168,7 +171,7 @@ templates = Jinja2Templates(directory="templates")
 
 @app.get("/health")
 async def health():
-    return {"ok": True}
+    return {"ok": True, "version": APP_VERSION}
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -182,7 +185,7 @@ async def home(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"request": request, "setup_enabled": setup_enabled},
+        context={"request": request, "app_version": APP_VERSION, "setup_enabled": setup_enabled},
     )
 
 @app.get("/setup", response_class=HTMLResponse)
