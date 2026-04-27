@@ -3,10 +3,10 @@
 ## Project Structure & Modules
 
 - Backend FastAPI app lives in `app/main.py`.
-- HTML templates are in `app/templates/` (`index.html`, `setup.html`).
+- HTML templates are in `app/templates/` (`index.html`).
 - Static assets (JS, icons, screenshots) are in `app/static/`.
-- Container and environment setup: `Dockerfile`, `docker-compose.yml`, `env.example`.
-- SQLite data and JSON config are expected under `/data` inside the container.
+- Container and environment files: `Dockerfile`, `docker-compose.yml`.
+- SQLite data is expected under `/data` inside the container.
 
 ## Build, Run, and Development
 
@@ -35,7 +35,7 @@
 
 ## Commit & Pull Request Guidelines
 
-- Commits: small, focused, present‑tense messages, e.g. `Add setup wizard and path mapping`.
+- Commits: small, focused, present‑tense messages, e.g. `Move runtime config to compose env`.
 - Group related backend + frontend changes together when they implement one feature.
 - PRs (or equivalent review units) should:
   - Describe the user‑visible change and any config/env vars added.
@@ -45,13 +45,12 @@
 
 - Prefer minimal, surgical edits over wide refactors.
 - Do not add new dependencies without updating `requirements.txt` and explaining why.
-- Keep all runtime configuration behind environment variables and/or `/data/config.json`; do not hard‑code host‑specific paths.
+- Keep all runtime configuration behind environment variables in `docker-compose.yml`; do not hard‑code host‑specific paths.
 
 ## Config & Storage Notes (2025-12)
 
-- Config precedence: values in `/data/config.json` (written via the `/setup` UI) override corresponding env vars; env vars act as defaults/fallbacks.
-- Setup locking: when `DISABLE_SETUP` is truthy (`1`, `true`, etc.), hide the Setup button in the main UI and return 404 for `/setup` and `/api/setup`.
+- Runtime config comes from environment variables passed by `docker-compose.yml`.
 - Storage paths are static inside the app container:
   - Transmission downloads must be mounted at `/downloads`.
   - The Audiobookshelf library must be mounted at `/library`.
-  - Configure host paths in `docker-compose.yml`, not through app env vars or setup fields.
+  - Configure host paths in `docker-compose.yml`, not through app env vars.

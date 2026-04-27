@@ -13,11 +13,13 @@ from datetime import datetime
 logger = logging.getLogger("mam_audiofinder")
 
 # ---------------------------- Config ----------------------------
-CONFIG_PATH = os.getenv("APP_CONFIG_PATH", "/data/config.json")
 DOWNLOADS_DIR = "/downloads"
 LIBRARY_DIR = "/library"
 EBOOKS_DIR = "/ebooks"
 DEFAULT_AUTO_IMPORT_POLL_INTERVAL = 30
+DEFAULT_MAM_BASE = "https://www.myanonamouse.net"
+DEFAULT_TRANSMISSION_LABEL = "mam-audiofinder"
+DEFAULT_UMASK = "0002"
 MEDIA_TYPE_AUDIOBOOK = "audiobook"
 MEDIA_TYPE_EBOOK = "ebook"
 MAM_MAIN_CATEGORIES = {
@@ -27,30 +29,10 @@ MAM_MAIN_CATEGORIES = {
 
 APP_VERSION = os.getenv("APP_VERSION", "unknown")
 
-def load_json_config() -> dict:
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else {}
-    except FileNotFoundError:
-        return {}
-    except Exception:
-        return {}
-
 def is_truthy(value) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in ("1", "true", "yes", "on")
-
-def parse_positive_int(value, default: int) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return default
-    return parsed if parsed > 0 else default
-
-def is_setup_disabled() -> bool:
-    return is_truthy(os.getenv("DISABLE_SETUP", ""))
 
 def build_mam_cookie(raw: str) -> str:
     raw = (raw or "").strip()
@@ -74,36 +56,20 @@ def normalize_media_type(value: str | None) -> str:
 
 class Settings:
     def __init__(self) -> None:
-        self.reload()
-
-    def reload(self) -> None:
-        cfg = load_json_config()
-
-        self.MAM_BASE = cfg.get("MAM_BASE") or os.getenv("MAM_BASE", "https://www.myanonamouse.net")
-
-        raw_cookie = cfg.get("MAM_COOKIE")
-        if raw_cookie is None:
-            raw_cookie = os.getenv("MAM_COOKIE", "")
-        self.MAM_COOKIE = build_mam_cookie(raw_cookie)
-
-        self.TRANSMISSION_URL = (
-            cfg.get("TRANSMISSION_URL")
-            or os.getenv("TRANSMISSION_URL", "http://transmission:9091/transmission/rpc")
-        ).rstrip("/")
-        self.TRANSMISSION_USER = cfg.get("TRANSMISSION_USER") or os.getenv("TRANSMISSION_USER", "")
-        self.TRANSMISSION_PASS = cfg.get("TRANSMISSION_PASS") or os.getenv("TRANSMISSION_PASS", "")
-        self.TRANSMISSION_LABEL = cfg.get("TRANSMISSION_LABEL") or os.getenv("TRANSMISSION_LABEL", "mam-audiofinder")
+        self.MAM_BASE = DEFAULT_MAM_BASE
+        self.MAM_COOKIE = build_mam_cookie(os.getenv("MAM_COOKIE", ""))
+        self.TRANSMISSION_URL = os.getenv("TRANSMISSION_URL", "http://transmission:9091/transmission/rpc").rstrip("/")
+        self.TRANSMISSION_USER = os.getenv("TRANSMISSION_USER", "")
+        self.TRANSMISSION_PASS = os.getenv("TRANSMISSION_PASS", "")
+        self.TRANSMISSION_LABEL = DEFAULT_TRANSMISSION_LABEL
         self.DOWNLOADS_DIR = DOWNLOADS_DIR
         self.LIBRARY_DIR = LIBRARY_DIR
         self.EBOOKS_DIR = EBOOKS_DIR
 
-        self.UMASK = cfg.get("UMASK") or os.getenv("UMASK")
-        auto_import_enabled = cfg["AUTO_IMPORT_ENABLED"] if "AUTO_IMPORT_ENABLED" in cfg else os.getenv("AUTO_IMPORT_ENABLED", "")
+        self.UMASK = DEFAULT_UMASK
+        auto_import_enabled = os.getenv("AUTO_IMPORT_ENABLED", "")
         self.AUTO_IMPORT_ENABLED = is_truthy(auto_import_enabled)
-        self.AUTO_IMPORT_POLL_INTERVAL = parse_positive_int(
-            os.getenv("AUTO_IMPORT_POLL_INTERVAL"),
-            DEFAULT_AUTO_IMPORT_POLL_INTERVAL,
-        )
+        self.AUTO_IMPORT_POLL_INTERVAL = DEFAULT_AUTO_IMPORT_POLL_INTERVAL
 
 settings = Settings()
 
@@ -164,27 +130,6 @@ def ensure_history_schema() -> None:
 
 ensure_history_schema()
 
-def needs_setup() -> bool:
-    return not settings.MAM_COOKIE
-
-def setup_context(request: Request) -> dict:
-    return {
-        "request": request,
-        "app_version": APP_VERSION,
-        "transmission_url": settings.TRANSMISSION_URL,
-        "transmission_user": settings.TRANSMISSION_USER,
-        "transmission_label": settings.TRANSMISSION_LABEL,
-        "auto_import_enabled": settings.AUTO_IMPORT_ENABLED,
-    }
-
-class SetupPayload(BaseModel):
-    mam_cookie: str | None = None
-    transmission_url: str | None = None
-    transmission_user: str | None = None
-    transmission_pass: str | None = None
-    transmission_label: str | None = None
-    auto_import_enabled: bool | None = None
-
 # ---------------------------- App ----------------------------
 app = FastAPI(title="MAM Book Finder", version=APP_VERSION)
 app.state.auto_import_task = None
@@ -199,63 +144,11 @@ async def health():
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    setup_enabled = not is_setup_disabled()
-    if needs_setup() and setup_enabled:
-        return templates.TemplateResponse(
-            request=request,
-            name="setup.html",
-            context=setup_context(request),
-        )
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"request": request, "app_version": APP_VERSION, "setup_enabled": setup_enabled},
+        context={"request": request, "app_version": APP_VERSION},
     )
-
-@app.get("/setup", response_class=HTMLResponse)
-async def setup_page(request: Request):
-    if is_setup_disabled():
-        raise HTTPException(status_code=404, detail="Not found")
-    return templates.TemplateResponse(
-        request=request,
-        name="setup.html",
-        context=setup_context(request),
-    )
-
-@app.post("/api/setup")
-async def api_setup(body: SetupPayload):
-    if is_setup_disabled():
-        raise HTTPException(status_code=404, detail="Not found")
-    cfg = load_json_config()
-    if not isinstance(cfg, dict):
-        cfg = {}
-
-    if body.mam_cookie and body.mam_cookie.strip():
-        cfg["MAM_COOKIE"] = body.mam_cookie.strip()
-    if body.transmission_url and body.transmission_url.strip():
-        cfg["TRANSMISSION_URL"] = body.transmission_url.strip()
-    if body.transmission_user and body.transmission_user.strip():
-        cfg["TRANSMISSION_USER"] = body.transmission_user.strip()
-    if body.transmission_pass:
-        cfg["TRANSMISSION_PASS"] = body.transmission_pass
-    if body.transmission_label and body.transmission_label.strip():
-        cfg["TRANSMISSION_LABEL"] = body.transmission_label.strip()
-    if body.auto_import_enabled is not None:
-        cfg["AUTO_IMPORT_ENABLED"] = bool(body.auto_import_enabled)
-
-    # Persist config
-    try:
-        dirpath = os.path.dirname(CONFIG_PATH)
-        if dirpath:
-            os.makedirs(dirpath, exist_ok=True)
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to write config: {e}")
-
-    settings.reload()
-    await reconcile_auto_import_task()
-    return {"ok": True}
 
 # ---------------------------- Search ----------------------------
 @app.post("/search")

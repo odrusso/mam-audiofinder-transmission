@@ -5,9 +5,14 @@ services:
     container_name: mam-audiofinder
     ports:
       - "8080:8080"
+    environment:
+      MAM_COOKIE: ""
+      TRANSMISSION_URL: "localhost:9091/transmission/rpc
+      TRANSMISSION_USER: ""
+      TRANSMISSION_PASS: ""
+      AUTO_IMPORT_ENABLED: "true"
     volumes:
-      - /path/to/config/data/:/data
-      # Replace the host paths on the left before first run. Keep the in-container paths static.
+      - /path/to/appdata-for-db:/data
       - /path/to/transmission-downloads:/downloads
       - /path/to/audiobook-library:/library
       - /path/to/ebook-library:/ebooks

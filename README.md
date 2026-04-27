@@ -19,7 +19,7 @@ A lightweight web app + API to quickly search MyAnonamouse for audiobooks or ebo
 ## Requirements
 
 - Transmission with RPC enabled and label support
-- A valid MAM session cookie for setup or env/config fallback
+- A valid MAM session cookie set in `docker-compose.yml` or your compose environment
 - Docker & Docker Compose
 
 ## Because You'll Ask
@@ -39,10 +39,11 @@ The checked-in `docker-compose.yml` supports both local source builds and the pu
    git clone https://github.com/odrusso/mam-audiofinder-transmission.git
    cd mam-audiofinder-transmission
    ```
-2. Copy `env.example` → `.env` and fill in the small set of runtime values:
-   - App port and state directory (`APP_PORT`, `DATA_DIR`)
-   - Container user/permissions (`PUID`, `PGID`, `UMASK`)
-3. Create the host state directory from `DATA_DIR` and make sure it is writable by `PUID:PGID`.
+2. Edit `docker-compose.yml` so the app environment points at your MAM and Transmission settings:
+   - `MAM_COOKIE`
+   - `TRANSMISSION_URL`, `TRANSMISSION_USER`, `TRANSMISSION_PASS`
+   - Optional `AUTO_IMPORT_ENABLED`
+3. Create the host state directory at `./data` and make sure it exists before first start.
 4. Edit the `volumes` section in `docker-compose.yml` so your host storage is mounted at the app's static in-container paths. Replace the placeholder paths on the left before starting:
    - Transmission downloads at `/downloads`
    - Audiobook library at `/library`
@@ -52,8 +53,7 @@ The checked-in `docker-compose.yml` supports both local source builds and the pu
    ```bash
    docker compose up -d --build
    ```
-7. Visit [http://localhost:8008](http://localhost:8008) or your chosen `APP_PORT`. On first run, the home page will show the setup screen. Enter your MAM cookie, Transmission RPC URL, Transmission credentials if needed, and the label to use for new torrents.
-8. Settings are saved to `/data/config.json`. After you have finished setup, you can optionally set `DISABLE_SETUP=1` and restart the container to hide `/setup`. Do not enable `DISABLE_SETUP` before initial setup unless you are supplying the setup-backed settings through env vars or an existing config file.
+7. Visit [http://localhost:8080](http://localhost:8080). The app starts directly in the main UI, and the compose file carries the fixed defaults plus the runtime secrets you set.
 
 If you want to use the published GHCR image instead of building locally, authenticate first if the package is private, then pull and start:
 
@@ -79,35 +79,27 @@ The health response includes the running app version.
 
 ## Environment Variables
 
-The app is setup-first. MAM and Transmission settings are normally saved through `/setup` into `/data/config.json`; env vars are only fallbacks.
+The app uses `docker-compose.yml` for the live secrets and toggles. The fixed defaults are hard-coded.
 
-Runtime/env-only values:
+Live values:
 
-| Variable          | Description                                                                 |
-|-------------------|-----------------------------------------------------------------------------|
-| `APP_PORT`        | Host port that exposes the app's web UI (used in `docker-compose.yml`)      |
-| `IMAGE_TAG`       | Published GHCR image tag for Compose pulls, default `latest`                |
-| `DATA_DIR`        | Host path where this app stores `/data` state, including config and SQLite  |
-| `PUID`            | Container user ID (for file permissions, default `99`)                      |
-| `PGID`            | Container group ID (for file permissions, default `100`)                    |
-| `UMASK`           | File creation mask (default `0002`)                                         |
-| `DISABLE_SETUP`   | When set to `1`/`true`, hides the setup button and disables `/setup` and `/api/setup` |
-| `APP_CONFIG_PATH` | Optional advanced override for the config JSON path                         |
+| Variable    | Description                                              |
+|-------------|----------------------------------------------------------|
+| `IMAGE_TAG` | Published GHCR image tag for Compose pulls, default `latest` |
 
-Setup-backed values, also supported as env fallbacks:
+App settings:
 
-| Variable             | Description                                                             |
-|----------------------|-------------------------------------------------------------------------|
-| `MAM_BASE`           | Optional advanced override for the MAM base URL                         |
-| `MAM_COOKIE`         | Your MAM session cookie (use ASN-locked cookie)                         |
-| `TRANSMISSION_URL`   | Transmission RPC URL (e.g. `http://transmission:9091/transmission/rpc`) |
-| `TRANSMISSION_USER`  | Transmission RPC username, if auth is enabled                           |
-| `TRANSMISSION_PASS`  | Transmission RPC password, if auth is enabled                           |
-| `TRANSMISSION_LABEL` | Label assigned to new torrents and used for import filtering            |
+| Variable            | Description                                                              |
+|---------------------|--------------------------------------------------------------------------|
+| `MAM_COOKIE`        | Your MAM session cookie (use ASN-locked cookie)                         |
+| `TRANSMISSION_URL`  | Transmission RPC URL (e.g. `http://transmission:9091/transmission/rpc`) |
+| `TRANSMISSION_USER` | Transmission RPC username, if auth is enabled                           |
+| `TRANSMISSION_PASS` | Transmission RPC password, if auth is enabled                           |
+| `AUTO_IMPORT_ENABLED` | Enable the background auto-import loop                                 |
 
 ## Storage configuration examples
 
-The app uses fixed in-container paths and does not read path settings from env or setup:
+The app uses fixed in-container paths and does not read path settings from env:
 
 - `/downloads` for Transmission downloads
 - `/library` for the audiobook library
@@ -129,7 +121,7 @@ Example host layout:
 
 ```yaml
 volumes:
-  - ${DATA_DIR}:/data
+  - ./data:/data
   - /mnt/media/torrents:/downloads
   - /mnt/media/audiobookshelf:/library
   - /mnt/media/ebooks:/ebooks
@@ -149,7 +141,7 @@ Example host layout:
 
 ```yaml
 volumes:
-  - ${DATA_DIR}:/data
+  - ./data:/data
   - /mnt/disk1/torrents:/downloads
   - /mnt/disk2/audiobooks:/library
   - /mnt/disk3/ebooks:/ebooks
