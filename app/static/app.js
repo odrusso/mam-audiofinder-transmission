@@ -1,7 +1,6 @@
 // ---------- DOM lookups ----------
 const form = document.getElementById('searchForm');
 const q = document.getElementById('q');
-const sortSel = document.getElementById('sort');
 const perpageSel = document.getElementById('perpage');
 const statusEl = document.getElementById('status');
 const table = document.getElementById('results');
@@ -50,7 +49,6 @@ if (form) {
 // ---------- Search flow ----------
 async function runSearch() {
   const text = (q?.value || '').trim();
-  const sortType = sortSel?.value || 'default';
   const perpage = parseInt(perpageSel?.value || '25', 10);
 
   statusEl.textContent = 'Searching...';
@@ -61,7 +59,7 @@ async function runSearch() {
     const data = await fetchJson('/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tor: { text, sortType }, perpage })
+      body: JSON.stringify({ tor: { text }, perpage })
     });
 
     const rows = data.results || [];

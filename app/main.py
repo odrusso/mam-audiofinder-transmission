@@ -243,7 +243,7 @@ async def search(payload: dict):
     tor.setdefault("text", "")
     tor.setdefault("srchIn", ["title", "author", "narrator"])
     tor.setdefault("searchType", "all")
-    tor.setdefault("sortType", "default")
+    tor["sortType"] = "seedersDesc"
     tor.setdefault("startNumber", "0")
     tor.setdefault("main_cat", ["13"])  # Audiobooks
 
