@@ -456,12 +456,6 @@ def history():
         """)).mappings().all()
     return {"items": list(rows)}
 
-@app.delete("/history/{row_id}")
-def delete_history(row_id: int):
-    with engine.begin() as cx:
-        cx.execute(text("DELETE FROM history WHERE id = :id"), {"id": row_id})
-    return {"ok": True}
-    
 # ---------------------------- List Importable ----------------------------
 async def list_completed_torrents() -> list[dict]:
     async with httpx.AsyncClient(timeout=30) as c:
@@ -509,10 +503,6 @@ async def list_completed_torrents() -> list[dict]:
             })
         return out
 
-@app.get("/transmission/torrents")
-async def transmission_torrents():
-    return {"items": await list_completed_torrents()}
-        
 # ---------------------------- Perform Import ----------------------------
 
 def sanitize(name: str) -> str:
@@ -604,19 +594,6 @@ def mark_history_failed(history_id: int | None, torrent_hash: str, detail: str):
                 WHERE torrent_hash = :torrent_hash
             """), {"ts": utcnow_str(), **params})
 
-def get_history_media_type(history_id: int | None) -> str | None:
-    if history_id is None:
-        return None
-    with engine.begin() as cx:
-        row = cx.execute(text("""
-            SELECT media_type
-            FROM history
-            WHERE id = :id
-        """), {"id": history_id}).mappings().first()
-    if not row:
-        return None
-    return normalize_media_type(row.get("media_type"))
-
 def get_auto_import_candidates(completed_hashes: set[str]) -> list[dict]:
     if not completed_hashes:
         return []
@@ -662,13 +639,6 @@ def validate_download_path(p: str) -> str:
 def is_transient_auto_import_error(exc: HTTPException) -> bool:
     detail = str(exc.detail)
     return exc.status_code == 502 and detail.startswith("Transmission")
-
-class ImportBody(BaseModel):
-    author: str
-    title: str
-    hash: str
-    history_id: int | None = None
-    media_type: str | None = None
 
 async def import_torrent_to_library(author: str, title: str, h: str, media_type: str = MEDIA_TYPE_AUDIOBOOK) -> str:
     media_type = normalize_media_type(media_type)
@@ -728,29 +698,6 @@ async def import_torrent_to_library(author: str, title: str, h: str, media_type:
 
     return str(dest_dir)
 
-@app.post("/import")
-async def do_import(body: ImportBody):
-    history_id = body.history_id
-    if history_id is not None:
-        update_history_status(history_id, "importing")
-
-    try:
-        media_type = get_history_media_type(history_id) or normalize_media_type(body.media_type)
-        dest = await import_torrent_to_library(body.author, body.title, body.hash, media_type)
-    except HTTPException as exc:
-        if history_id is not None:
-            mark_history_failed(history_id, body.hash, str(exc.detail))
-        raise
-    except Exception as exc:
-        logger.exception("Import failed for torrent %s", body.hash)
-        detail = f"Import failed: {exc}"
-        if history_id is not None:
-            mark_history_failed(history_id, body.hash, detail)
-        raise HTTPException(status_code=500, detail=detail)
-
-    mark_history_imported(history_id, body.hash)
-    return {"ok": True, "dest": dest}
-
 async def auto_import_cycle():
     completed = await list_completed_torrents()
     completed_hashes = {item.get("hash") for item in completed if item.get("hash")}
@@ -767,7 +714,7 @@ async def auto_import_cycle():
             continue
 
         if not author or not title:
-            mark_history_failed(history_id, torrent_hash, "History row is missing author/title; use manual import.")
+            mark_history_failed(history_id, torrent_hash, "History row is missing author/title.")
             continue
 
         update_history_status(history_id, "importing")

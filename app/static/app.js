@@ -12,17 +12,6 @@ const historyTable = document.getElementById('history');
 const historyBody = historyTable.querySelector('tbody');
 const historyColumnCount = historyTable.querySelector('thead tr').children.length;
 
-let cachedTorrents = null;
-let cachedTorrentsPromise = null;
-let activeImportHistoryId = null;
-
-const importRow = document.createElement('tr');
-importRow.className = 'import-detail-row';
-importRow.style.display = 'none';
-const importCell = document.createElement('td');
-importCell.colSpan = historyColumnCount;
-importRow.appendChild(importCell);
-
 function showHistoryCard() {
   historyCard.style.display = 'block';
 }
@@ -119,8 +108,6 @@ async function runSearch() {
               media_type: it.media_type || mediaType
             })
           });
-          cachedTorrents = null;
-          cachedTorrentsPromise = null;
           addBtn.textContent = 'Added';
           await loadHistory();
         } catch (e) {
@@ -252,149 +239,9 @@ function applyDataLabels(sourceTable, row) {
   });
 }
 
-function closeImportPanel() {
-  activeImportHistoryId = null;
-  importRow.style.display = 'none';
-  importCell.innerHTML = '';
-  if (importRow.parentNode) {
-    importRow.parentNode.removeChild(importRow);
-  }
-}
-
-async function getCompletedTorrents(forceReload = false) {
-  if (forceReload) {
-    cachedTorrents = null;
-    cachedTorrentsPromise = null;
-  }
-  if (cachedTorrents) return cachedTorrents;
-  if (!cachedTorrentsPromise) {
-    cachedTorrentsPromise = fetchJson('/transmission/torrents').then((j) => {
-      cachedTorrents = j.items || [];
-      return cachedTorrents;
-    }).catch((err) => {
-      cachedTorrentsPromise = null;
-      throw err;
-    });
-  }
-  return cachedTorrentsPromise;
-}
-
-async function openImportPanel(historyItem, row) {
-  if (activeImportHistoryId === historyItem.id) {
-    closeImportPanel();
-    return;
-  }
-
-  activeImportHistoryId = historyItem.id;
-  const mediaType = normalizeMediaType(historyItem.media_type);
-  const destinationRoot = mediaType === 'ebook' ? '/ebooks' : '/library';
-  const importButtonLabel = mediaType === 'ebook' ? 'Copy to Ebooks' : 'Copy to Library';
-  importCell.innerHTML = `
-    <div class="import-form import-panel">
-      <div class="import-panel-row">
-        <span>Import:</span>
-        <span>${escapeHtml(destinationRoot)}</span>
-        <span>/</span>
-        <input type="text" class="imp-author" placeholder="Author" value="${escapeHtml(historyItem.author || '')}" style="min-width:220px;">
-        <span>/</span>
-        <input type="text" class="imp-title" placeholder="Title" value="${escapeHtml(historyItem.title || '')}" style="min-width:280px;">
-        <span>/</span>
-        <select class="imp-torrent" style="min-width:320px;">
-          <option disabled selected>Loading torrents...</option>
-        </select>
-        <button class="imp-go">${escapeHtml(importButtonLabel)}</button>
-      </div>
-      <div class="imp-status"></div>
-    </div>
-  `;
-  row.after(importRow);
-  importRow.style.display = '';
-
-  const authorInput = importCell.querySelector('.imp-author');
-  const titleInput = importCell.querySelector('.imp-title');
-  const torrentSelect = importCell.querySelector('.imp-torrent');
-  const goBtn = importCell.querySelector('.imp-go');
-  const status = importCell.querySelector('.imp-status');
-
-  try {
-    const torrents = await getCompletedTorrents();
-    if (activeImportHistoryId !== historyItem.id) return;
-
-    torrentSelect.innerHTML = '';
-    torrents.forEach((torrent) => {
-      const option = document.createElement('option');
-      option.value = torrent.hash;
-      option.textContent = `${torrent.name} - ${torrent.single_file ? 'single-file' : (torrent.root || torrent.name)}`;
-      torrentSelect.appendChild(option);
-    });
-
-    if (!torrentSelect.children.length) {
-      const option = document.createElement('option');
-      option.disabled = true;
-      option.selected = true;
-      option.textContent = 'No completed torrents with app label';
-      torrentSelect.appendChild(option);
-    }
-  } catch (e) {
-    console.error(e);
-    if (activeImportHistoryId === historyItem.id) {
-      torrentSelect.innerHTML = '<option disabled selected>Failed to load torrents</option>';
-    }
-  }
-
-  goBtn.addEventListener('click', async (ev) => {
-    ev.preventDefault();
-    const author = authorInput.value.trim();
-    const title = titleInput.value.trim();
-    const hash = torrentSelect.value;
-
-    if (!author || !title || !hash) {
-      status.textContent = 'Please fill Author, Title, and select a torrent.';
-      return;
-    }
-
-    goBtn.disabled = true;
-    status.textContent = 'Importing...';
-
-    try {
-      const result = await fetchJson('/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          author,
-          title,
-          hash,
-          history_id: historyItem.id,
-          media_type: mediaType
-        })
-      });
-
-      cachedTorrents = null;
-      cachedTorrentsPromise = null;
-      status.textContent = `Done -> ${result.dest}`;
-      goBtn.textContent = 'Imported';
-
-      const statusTd = row.children[6];
-      if (statusTd) statusTd.innerHTML = renderHistoryStatusCell({ torrent_status: 'imported' });
-    } catch (e) {
-      console.error(e);
-      status.textContent = `Failed: ${e.message}`;
-      const statusTd = row.children[6];
-      if (statusTd) {
-        statusTd.innerHTML = renderHistoryStatusCell({
-          torrent_status: 'import_failed',
-          status_detail: e.message || 'Import failed'
-        });
-      }
-      goBtn.disabled = false;
-    }
-  });
-}
-
 async function loadHistory() {
   try {
     const j = await fetchJson('/history');
-    closeImportPanel();
     historyBody.innerHTML = '';
 
     const items = j.items || [];
@@ -410,28 +257,6 @@ async function loadHistory() {
       const linkURL = item.mam_id ? `https://www.myanonamouse.net/t/${encodeURIComponent(item.mam_id)}` : '';
       const mediaType = normalizeMediaType(item.media_type);
 
-      const importBtn = document.createElement('button');
-      importBtn.textContent = item.torrent_status === 'importing' ? 'Importing...' : 'Import';
-      importBtn.disabled = item.torrent_status === 'importing';
-      importBtn.addEventListener('click', async () => {
-        await openImportPanel(item, tr);
-      });
-
-      const removeBtn = document.createElement('button');
-      removeBtn.textContent = 'Remove';
-      removeBtn.addEventListener('click', async () => {
-        removeBtn.disabled = true;
-        try {
-          await fetchJson(`/history/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
-          if (activeImportHistoryId === item.id) closeImportPanel();
-          tr.remove();
-          if (!historyBody.children.length) renderEmptyHistory();
-        } catch (e) {
-          console.error('remove failed', e);
-          removeBtn.disabled = false;
-        }
-      });
-
       tr.innerHTML = `
         <td>${renderMediaTypeBadge(mediaType)}</td>
         <td>${escapeHtml(item.title || '')}</td>
@@ -440,13 +265,9 @@ async function loadHistory() {
         <td class="center">${linkURL ? `<a href="${linkURL}" target="_blank" rel="noopener noreferrer" title="Open on MAM">🔗</a>` : ''}</td>
         <td>${escapeHtml(when)}</td>
         <td>${renderHistoryStatusCell(item)}</td>
-        <td></td>
-        <td></td>
       `;
 
       applyDataLabels(historyTable, tr);
-      tr.children[7].appendChild(importBtn);
-      tr.children[8].appendChild(removeBtn);
       historyBody.appendChild(tr);
     });
 

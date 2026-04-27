@@ -30,8 +30,8 @@
 
 - There is no formal test suite yet.
 - When changing backend logic, at minimum:
-  - Hit `/health`, `/search`, `/add`, `/transmission/torrents`, `/import` manually in a dev environment.
-  - Exercise new code paths via the web UI.
+  - Hit `/health`, `/search`, `/add`, and `/history` manually in a dev environment.
+  - Verify auto-import behavior with a completed torrent in Transmission.
 
 ## Commit & Pull Request Guidelines
 

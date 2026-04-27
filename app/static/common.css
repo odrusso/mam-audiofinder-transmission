@@ -217,26 +217,6 @@ tbody tr:last-child td {
   border-top: 1px solid var(--border-subtle);
 }
 
-.import-panel {
-  padding: 0.8rem;
-  margin: 0.4rem 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-elevated-strong);
-}
-
-.import-panel-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.imp-status {
-  margin-top: 6px;
-  color: var(--muted);
-}
-
 .history-status-failed {
   color: var(--danger);
   font-weight: 600;
@@ -361,26 +341,20 @@ tbody tr:last-child td {
   }
 
   td[data-label="Link"] a,
-  td[data-label="Add"] button,
-  td[data-label="Import"] button,
-  td[data-label="Remove"] button {
+  td[data-label="Add"] button {
     justify-self: start;
   }
 
-  td[data-label="Add"] button,
-  td[data-label="Import"] button,
-  td[data-label="Remove"] button {
+  td[data-label="Add"] button {
     width: 100%;
     max-width: 13rem;
   }
 
-  tr.empty td,
-  tr.import-detail-row td {
+  tr.empty td {
     display: block;
   }
 
-  tr.empty td::before,
-  tr.import-detail-row td::before {
+  tr.empty td::before {
     display: none;
   }
 
@@ -389,18 +363,4 @@ tbody tr:last-child td {
     overflow-wrap: anywhere;
   }
 
-  .import-panel-row {
-    align-items: stretch;
-  }
-
-  .import-panel-row > span {
-    display: none;
-  }
-
-  .import-panel-row input,
-  .import-panel-row select,
-  .import-panel-row button {
-    width: 100%;
-    min-width: 0 !important;
-  }
 }

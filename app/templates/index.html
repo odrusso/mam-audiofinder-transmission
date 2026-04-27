@@ -67,8 +67,6 @@
     }
     .right { text-align:right; }
     .center { text-align: center; }
-    .import-form input, .import-form select { padding:0.45rem 0.55rem; }
-    .import-form button { padding:0.45rem 0.7rem; }
     .result-title-cell { display:flex; flex-direction:column; gap:0.35rem; }
     .result-title-main { font-weight:600; }
     .result-flags { display:flex; gap:0.35rem; flex-wrap:wrap; }
@@ -136,7 +134,7 @@
   <header>
     <img src="/static/logo.png" alt="Book Finder logo" class="logo" />
     <h1>Book Finder</h1>
-    <span class="muted">Download Audiobooks or Ebooks and Import to Libraries</span>
+    <span class="muted">Download Audiobooks or Ebooks and Sync to Libraries</span>
   </header>
 
   <form id="searchForm" class="row">
@@ -186,8 +184,6 @@
           <th class="center">Link</th>
           <th>When</th>
           <th>Status</th>
-          <th>Import</th>
-          <th>Remove</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -195,7 +191,7 @@
   </div>
 
   <div class="actions-row">
-    <button id="showHistoryBtn" type="button" title="Show download history">History &amp; Import</button>
+    <button id="showHistoryBtn" type="button" title="Show download history">History</button>
   </div>
 {% endblock %}
 

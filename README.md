@@ -1,17 +1,14 @@
 # MAM Book Finder
 
-A lightweight web app + API to quickly search MyAnonamouse for audiobooks or ebooks, add them to Transmission, and import completed downloads into separate audiobook and ebook libraries.
+A lightweight web app + API to quickly search MyAnonamouse for audiobooks or ebooks, add them to Transmission, and automatically sync completed downloads into separate audiobook and ebook libraries.
 
 ![Search](/app/static/screenshots/search.png)
-![Import](/app/static/screenshots/import.png)
-
-
 ## Features
 
 - **Search MAM** for audiobooks or ebooks by title and author, with narrator search for audiobooks
 - **One-click add to Transmission** (with its own label)
 - **History view** of all books you've added  
-- **Inline import tool** to copy completed downloads into your audiobook or ebook library
+- **Background sync** that copies completed downloads into your audiobook or ebook library
 - Minimal, fast UI that works on desktop and mobile
 - ZERO AUTHENTICATION (*Please* don't put this on the open internet. Tailscale or a Cloudflare Tunnel with Cloudflare Access might be good options.)
 - Spouse tested and approved
@@ -27,7 +24,7 @@ A lightweight web app + API to quickly search MyAnonamouse for audiobooks or ebo
 ***Why build this*** instead of using Readarr or one of its revivals, forks, or related projects?
 - This uses the MAM API directly, not just for finding books but also for metadata. It doesn't rely on any other systems or databases. This is great for me because when a book shows up in my search results I KNOW I can download it, and I know the metadata like narrator and format will be accurate.
 - I wanted something I could use from my phone that would be as fast as I could make it. This is very fast.
-- This also keeps things dead simple. There's no queue, no requests, no ranking of multiple sources, no usenet, no RSS. Just search, download, and import to library.
+- This also keeps things dead simple. There's no queue, no requests, no ranking of multiple sources, no usenet, no RSS. Just search, download, and sync to library.
 
 
 ## Quick Start
