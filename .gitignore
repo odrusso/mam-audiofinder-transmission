@@ -6,6 +6,7 @@ __pycache__/
 .env
 /data/
 *.db
+target/
 
 # OS/editor
 .DS_Store

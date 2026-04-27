@@ -2,7 +2,7 @@
 
 ## Project Structure & Modules
 
-- Backend FastAPI app lives in `app/main.py`.
+- Backend Rust app lives in `src/main.rs`.
 - HTML templates are in `app/templates/` (`index.html`, `setup.html`).
 - Static assets (JS, icons, screenshots) are in `app/static/`.
 - Container and environment setup: `Dockerfile`, `docker-compose.yml`, `env.example`.
@@ -11,19 +11,19 @@
 ## Build, Run, and Development
 
 - Local (no Docker, for quick checks):
-  - From `app/`:  
-    `uvicorn main:app --reload --host 0.0.0.0 --port 8080`
+  - From the repo root:  
+  `cargo run`
 - Docker:
   - `docker compose up -d` – build and run using `.env`.
   - `docker compose build` – rebuild image after code changes.
 - Basic syntax check:
-  - `python -m py_compile app/main.py`
+  - `cargo check`
 
 ## Coding Style & Naming
 
-- Python: 4‑space indentation, no tabs.
-- Use `snake_case` for functions/variables, `CamelCase` for classes.
-- Keep modules small and flat; prefer helpers in `main.py` over new packages unless needed.
+- Rust: follow standard `rustfmt` formatting.
+- Use `snake_case` for functions/variables, `CamelCase` for types.
+- Keep the backend small and flat; prefer helpers in `src/main.rs` over new modules unless needed.
 - Frontend JS: modern ES syntax, avoid frameworks; keep logic in `app/static/app.js` or small new files.
 
 ## Testing Guidelines
@@ -44,7 +44,7 @@
 ## Agent‑Specific Instructions
 
 - Prefer minimal, surgical edits over wide refactors.
-- Do not add new dependencies without updating `requirements.txt` and explaining why.
+- Do not add new dependencies without updating `Cargo.toml` and explaining why.
 - Keep all runtime configuration behind environment variables and/or `/data/config.json`; do not hard‑code host‑specific paths.
 
 ## Config & Storage Notes (2025-12)
