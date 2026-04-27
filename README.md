@@ -1,6 +1,6 @@
 # MAM Book Finder
 
-A lightweight web app + API to quickly search MyAnonamouse for audiobooks or ebooks, add them to Transmission, and import completed downloads into separate audiobook and ebook libraries.
+A lightweight Rust web app + API to quickly search MyAnonamouse for audiobooks or ebooks, add them to Transmission, and import completed downloads into separate audiobook and ebook libraries.
 
 ![Search](/app/static/screenshots/search.png)
 ![Import](/app/static/screenshots/import.png)
@@ -54,6 +54,14 @@ The checked-in `docker-compose.yml` supports both local source builds and the pu
    ```
 7. Visit [http://localhost:8008](http://localhost:8008) or your chosen `APP_PORT`. On first run, the home page will show the setup screen. Enter your MAM cookie, Transmission RPC URL, Transmission credentials if needed, and the label to use for new torrents.
 8. Settings are saved to `/data/config.json`. After you have finished setup, you can optionally set `DISABLE_SETUP=1` and restart the container to hide `/setup`. Do not enable `DISABLE_SETUP` before initial setup unless you are supplying the setup-backed settings through env vars or an existing config file.
+
+If you have a Rust toolchain locally, you can also run the app without Docker:
+
+```bash
+cargo run
+```
+
+The server listens on `0.0.0.0:8080`.
 
 If you want to use the published GHCR image instead of building locally, authenticate first if the package is private, then pull and start:
 
