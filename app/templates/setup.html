@@ -1,8 +1,6 @@
-{% extends "base.html" %}
+{{define "title"}}MAM Book Finder - Setup{{end}}
 
-{% block title %}MAM Book Finder - Setup{% endblock %}
-
-{% block head %}
+{{define "head"}}
   <style>
     .title-link { color: inherit; text-decoration: none; cursor: pointer; }
     .title-link:hover { text-decoration: underline; }
@@ -46,9 +44,9 @@
       button[type="submit"] { width:100%; }
     }
   </style>
-{% endblock %}
+{{end}}
 
-{% block body %}
+{{define "body"}}
   <header>
     <img src="/static/logo.png" alt="Book Finder logo" class="logo" />
     <h1><a href="/" class="title-link">Book Finder - Setup</a></h1>
@@ -68,13 +66,13 @@
 
       <div class="row">
         <label for="transmission_url">Transmission RPC URL</label>
-        <input id="transmission_url" name="transmission_url" type="text" value="{{ transmission_url }}" placeholder="http://transmission:9091/transmission/rpc" />
+        <input id="transmission_url" name="transmission_url" type="text" value="{{.TransmissionURL}}" placeholder="http://transmission:9091/transmission/rpc" />
         <small>Transmission's RPC endpoint, usually ending in <code>/transmission/rpc</code>.</small>
       </div>
 
       <div class="row">
         <label for="transmission_user">Transmission username</label>
-        <input id="transmission_user" name="transmission_user" type="text" value="{{ transmission_user }}" placeholder="transmission" />
+        <input id="transmission_user" name="transmission_user" type="text" value="{{.TransmissionUser}}" placeholder="transmission" />
       </div>
 
       <div class="row">
@@ -84,14 +82,14 @@
 
       <div class="row">
         <label for="transmission_label">Transmission label</label>
-        <input id="transmission_label" name="transmission_label" type="text" value="{{ transmission_label }}" placeholder="mam-audiofinder" />
+        <input id="transmission_label" name="transmission_label" type="text" value="{{.TransmissionLabel}}" placeholder="mam-audiofinder" />
         <small>New torrents get this label, and the import view only lists completed torrents with this label.</small>
       </div>
 
       <div class="row">
         <label for="auto_import_enabled">Auto-import completed torrents</label>
         <label class="checkbox-row">
-          <input id="auto_import_enabled" name="auto_import_enabled" type="checkbox" {% if auto_import_enabled %}checked{% endif %} />
+          <input id="auto_import_enabled" name="auto_import_enabled" type="checkbox" {{if .AutoImportEnabled}}checked{{end}} />
           <span>Automatically copy completed labeled torrents into <code>/library</code> or <code>/ebooks</code>.</span>
         </label>
         <small>Uses the saved history author/title for the destination path. Failed auto-imports are left in history for manual retry.</small>
@@ -114,8 +112,8 @@
   <p class="muted health-line">
     Health check: <code id="health">...</code>
   </p>
-{% endblock %}
+{{end}}
 
-{% block scripts %}
+{{define "scripts"}}
   <script src="/static/setup.js" defer></script>
-{% endblock %}
+{{end}}

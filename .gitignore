@@ -1,9 +1,13 @@
-# Python
-__pycache__/
-*.pyc
+# Go
+bin/
+*.exe
+*.test
+*.out
+coverage.out
 
 # Environment & local data
 .env
+.env.test.local
 /data/
 *.db
 

@@ -2,32 +2,25 @@
 
 ## Recent Key Changes Implemented
 
-- Added a `Settings` helper in `app/main.py`:
-  - Loads config from `/data/config.json` (or `APP_CONFIG_PATH`) and falls back to env vars.
-  - Centralizes: `MAM_COOKIE`, `TRANSMISSION_URL`, `TRANSMISSION_USER`, `TRANSMISSION_PASS`, `TRANSMISSION_LABEL`, etc.
+- Rewrote the runtime from FastAPI/Python to Go:
+  - New Go entrypoint is [`main.go`](/Users/oscar/Projects/mam-audiofinder-transmission/main.go).
+  - Config still loads from `/data/config.json` by default, with `APP_CONFIG_PATH` and `APP_DATA_DIR` available for overrides.
+  - SQLite history remains at `/data/history.db` by default, managed via the `sqlite3` CLI to avoid an external Go driver dependency.
+- Kept the same UI and API surface:
+  - Search, add, history, transmission torrent listing, and import endpoints still exist.
+  - Templates were converted to Go `html/template`.
 - Standardized storage paths:
-  - The app expects completed Transmission downloads under `/downloads` and imports into `/library`.
+  - The app expects completed Transmission downloads under `/downloads` and imports into `/library` or `/ebooks`.
   - Docker Compose mounts host storage directly to those static in-container paths.
-  - Imports reject Transmission paths outside `/downloads` with a clear mount mismatch error.
-- Added Transmission RPC integration:
-  - `POST /add` calls `torrent-add` using either a MAM direct URL or base64 `.torrent` upload.
-  - `GET /transmission/torrents` calls `torrent-get`, returning completed torrents with `TRANSMISSION_LABEL`.
-  - Imports always copy files into the Audiobookshelf library and remove the app label after import.
-- Added a first‑run setup wizard:
-  - `GET /` serves `setup.html` if `needs_setup()` (no MAM cookie) and setup is not disabled via env.
-  - `GET /setup` shows the wizard unless `DISABLE_SETUP` is set (then it returns 404).
-  - `POST /api/setup` writes `/data/config.json` and calls `settings.reload()`.
-  - UI files: `app/templates/setup.html`, `app/static/setup.js`.
-- Setup UX tweaks:
-  - Main page includes a “Setup / Configuration” button (hidden when `DISABLE_SETUP` is enabled).
-  - The setup page title links back to `/`.
-- Root‑level `AGENTS.md` documents repo conventions and agent guidance.
+- Docker and CI now build Go:
+  - Dockerfile is a multi-stage Go build.
+  - GitHub Actions runs `go test ./...` before building/pushing the container.
 
 ## How to Run for Testing
 
-- Local dev (no Docker), from `app/`:
-  - `uvicorn main:app --reload --host 0.0.0.0 --port 8080`
-  - Optionally set `APP_CONFIG_PATH=../dev-config.json` to avoid writing into `/data`.
+- Local dev (no Docker), from the repo root:
+  - `APP_DATA_DIR=/tmp/mam-audiofinder-data go run .`
+  - Optionally set `APP_CONFIG_PATH` to keep config separate from the default data dir.
 - Docker (on Unraid or similar):
   - Update `.env` for runtime values and `docker-compose.yml` for `/downloads` and `/library` mounts, then `docker compose up -d`.
   - First visit to `/` on a fresh data directory should trigger the setup wizard (unless `DISABLE_SETUP` is set).

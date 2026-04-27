@@ -1,0 +1,39 @@
+name: Live MAM Test
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  live-mam:
+    runs-on: ubuntu-latest
+    env:
+      MAM_COOKIE: ${{ secrets.MAM_COOKIE }}
+      MAM_LIVE_TEST: 1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Check live test secret
+        id: mam
+        shell: bash
+        run: |
+          if [ -z "${MAM_COOKIE:-}" ]; then
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+            echo "MAM_COOKIE secret is not configured; skipping live MAM test."
+          else
+            echo "enabled=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Run live MAM integration test
+        if: steps.mam.outputs.enabled == 'true'
+        run: go test -tags=integration ./...

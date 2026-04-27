@@ -1,21 +1,23 @@
+{{define "base"}}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>{% block title %}Book Finder{% endblock %}</title>
+  <title>{{block "title" .}}Book Finder{{end}}</title>
   <link rel="icon" href="/static/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
   <link rel="apple-touch-icon" href="/static/favicon-180.png">
   <meta name="theme-color" content="#10151b">
   <link rel="stylesheet" href="/static/common.css">
-  {% block head %}{% endblock %}
+  {{block "head" .}}{{end}}
 </head>
 <body>
-  {% block body %}{% endblock %}
-  <footer class="app-footer muted">Version {{ app_version|default("unknown") }}</footer>
+  {{block "body" .}}{{end}}
+  <footer class="app-footer muted">Version {{.AppVersion}}</footer>
   <script src="/static/common.js" defer></script>
-  {% block scripts %}{% endblock %}
+  {{block "scripts" .}}{{end}}
 </body>
 </html>
+{{end}}

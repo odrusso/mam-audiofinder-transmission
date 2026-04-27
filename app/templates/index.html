@@ -1,8 +1,6 @@
-{% extends "base.html" %}
+{{define "title"}}Book Finder{{end}}
 
-{% block title %}Book Finder{% endblock %}
-
-{% block head %}
+{{define "head"}}
   <style>
     .row {
       display:flex;
@@ -130,9 +128,9 @@
       select { flex-basis:100%; width:100%; }
     }
   </style>
-{% endblock %}
+{{end}}
 
-{% block body %}
+{{define "body"}}
   <header>
     <img src="/static/logo.png" alt="Book Finder logo" class="logo" />
     <h1>Book Finder</h1>
@@ -196,12 +194,12 @@
 
   <div class="actions-row">
     <button id="showHistoryBtn" type="button" title="Show download history">History &amp; Import</button>
-    {% if setup_enabled %}
+    {{if .SetupEnabled}}
     <button type="button" onclick="window.location.href='/setup'">Setup / Configuration</button>
-    {% endif %}
+    {{end}}
   </div>
-{% endblock %}
+{{end}}
 
-{% block scripts %}
+{{define "scripts"}}
   <script src="/static/app.js" defer></script>
-{% endblock %}
+{{end}}

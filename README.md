@@ -20,7 +20,9 @@ A lightweight web app + API to quickly search MyAnonamouse for audiobooks or ebo
 
 - Transmission with RPC enabled and label support
 - A valid MAM session cookie for setup or env/config fallback
-- Docker & Docker Compose
+- Go 1.24+ for local development
+- The `sqlite3` CLI available on the host for local development
+- Docker & Docker Compose for containerized runs
 
 ## Because You'll Ask
 
@@ -88,6 +90,7 @@ Runtime/env-only values:
 | `APP_PORT`        | Host port that exposes the app's web UI (used in `docker-compose.yml`)      |
 | `IMAGE_TAG`       | Published GHCR image tag for Compose pulls, default `latest`                |
 | `DATA_DIR`        | Host path where this app stores `/data` state, including config and SQLite  |
+| `APP_DATA_DIR`    | Optional advanced override for the app's internal data directory            |
 | `PUID`            | Container user ID (for file permissions, default `99`)                      |
 | `PGID`            | Container group ID (for file permissions, default `100`)                    |
 | `UMASK`           | File creation mask (default `0002`)                                         |
@@ -169,6 +172,17 @@ The GHCR workflow publishes these image tags:
 - `vX.Y.Z`, `X.Y.Z`, and `X.Y` for release tags
 
 Published images receive `APP_VERSION` at build time. Local source runs that were not built by CI report `unknown`.
+
+## Local Development
+
+Run the app directly from the repository root:
+
+```bash
+export APP_DATA_DIR=/tmp/mam-audiofinder-data
+go run .
+```
+
+The app serves the same UI and API on port `8080` by default.
 
 
 This project was created to scratch a personal itch, and was almost entirely vibe-coded with OpenAI Codex. I will probably not be developing it further, looking at issues, or accepting pull requests.
