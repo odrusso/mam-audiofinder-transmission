@@ -293,8 +293,91 @@ tbody tr:last-child td {
 
   table {
     display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    min-width: 0;
+    overflow: visible;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  tbody tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    box-shadow: 0 12px 28px var(--shadow);
+  }
+
+  th,
+  td {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  td {
+    display: grid;
+    grid-template-columns: minmax(5.8rem, 34%) minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: start;
+    overflow-wrap: anywhere;
+  }
+
+  td::before {
+    content: attr(data-label);
+    color: var(--text-soft);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.35;
+    text-transform: uppercase;
+  }
+
+  td:last-child {
+    border-bottom: 0;
+  }
+
+  td:empty::after {
+    content: "-";
+    color: var(--muted);
+  }
+
+  td.right,
+  td.center {
+    text-align: left;
+  }
+
+  td[data-label="Link"] a,
+  td[data-label="Add"] button,
+  td[data-label="Import"] button,
+  td[data-label="Remove"] button {
+    justify-self: start;
+  }
+
+  td[data-label="Add"] button,
+  td[data-label="Import"] button,
+  td[data-label="Remove"] button {
+    width: 100%;
+    max-width: 13rem;
+  }
+
+  tr.empty td,
+  tr.import-detail-row td {
+    display: block;
+  }
+
+  tr.empty td::before,
+  tr.import-detail-row td::before {
+    display: none;
   }
 
   code,

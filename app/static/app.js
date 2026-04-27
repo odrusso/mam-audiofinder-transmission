@@ -17,6 +17,7 @@ let cachedTorrentsPromise = null;
 let activeImportHistoryId = null;
 
 const importRow = document.createElement('tr');
+importRow.className = 'import-detail-row';
 importRow.style.display = 'none';
 const importCell = document.createElement('td');
 importCell.colSpan = historyColumnCount;
@@ -26,8 +27,8 @@ function showHistoryCard() {
   historyCard.style.display = 'block';
 }
 
-// Focus the search box
-if (q) q.focus();
+// Focus the search box on devices where it will not pop open a touch keyboard.
+if (q && window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) q.focus();
 
 // ---------- Show History (even without searching) ----------
 if (showHistoryBtn) {
@@ -115,6 +116,7 @@ async function runSearch() {
         <td></td>
       `;
 
+      applyDataLabels(table, tr);
       tr.lastElementChild.appendChild(addBtn);
       tbody.appendChild(tr);
     });
@@ -211,6 +213,15 @@ function renderEmptyHistory() {
   tr.className = 'empty';
   tr.innerHTML = `<td colspan="${historyColumnCount}" class="center muted">No items in history yet.</td>`;
   historyBody.appendChild(tr);
+}
+
+function applyDataLabels(sourceTable, row) {
+  const labels = Array.from(sourceTable.querySelectorAll('thead th'))
+    .map((th) => th.textContent.trim());
+
+  Array.from(row.children).forEach((cell, index) => {
+    if (labels[index]) cell.dataset.label = labels[index];
+  });
 }
 
 function closeImportPanel() {
@@ -398,6 +409,7 @@ async function loadHistory() {
         <td></td>
       `;
 
+      applyDataLabels(historyTable, tr);
       tr.children[6].appendChild(importBtn);
       tr.children[7].appendChild(removeBtn);
       historyBody.appendChild(tr);
