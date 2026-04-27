@@ -67,8 +67,6 @@ class Settings:
         self.EBOOKS_DIR = EBOOKS_DIR
 
         self.UMASK = DEFAULT_UMASK
-        auto_import_enabled = os.getenv("AUTO_IMPORT_ENABLED", "")
-        self.AUTO_IMPORT_ENABLED = is_truthy(auto_import_enabled)
         self.AUTO_IMPORT_POLL_INTERVAL = DEFAULT_AUTO_IMPORT_POLL_INTERVAL
 
 settings = Settings()
@@ -764,13 +762,10 @@ async def stop_auto_import_task():
 
 async def reconcile_auto_import_task():
     task = getattr(app.state, "auto_import_task", None)
-    if settings.AUTO_IMPORT_ENABLED:
-        if task is None or task.done():
-            stop_event = asyncio.Event()
-            app.state.auto_import_stop = stop_event
-            app.state.auto_import_task = asyncio.create_task(auto_import_loop(stop_event))
-    elif task is not None:
-        await stop_auto_import_task()
+    if task is None or task.done():
+        stop_event = asyncio.Event()
+        app.state.auto_import_stop = stop_event
+        app.state.auto_import_task = asyncio.create_task(auto_import_loop(stop_event))
 
 @app.on_event("startup")
 async def startup_event():

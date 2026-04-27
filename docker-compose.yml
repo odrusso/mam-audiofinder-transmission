@@ -10,7 +10,6 @@ services:
       TRANSMISSION_URL: "localhost:9091/transmission/rpc
       TRANSMISSION_USER: ""
       TRANSMISSION_PASS: ""
-      AUTO_IMPORT_ENABLED: "true"
     volumes:
       - /path/to/appdata-for-db:/data
       - /path/to/transmission-downloads:/downloads
