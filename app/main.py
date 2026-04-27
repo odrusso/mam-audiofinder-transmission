@@ -16,7 +16,14 @@ logger = logging.getLogger("mam_audiofinder")
 CONFIG_PATH = os.getenv("APP_CONFIG_PATH", "/data/config.json")
 DOWNLOADS_DIR = "/downloads"
 LIBRARY_DIR = "/library"
+EBOOKS_DIR = "/ebooks"
 DEFAULT_AUTO_IMPORT_POLL_INTERVAL = 30
+MEDIA_TYPE_AUDIOBOOK = "audiobook"
+MEDIA_TYPE_EBOOK = "ebook"
+MAM_MAIN_CATEGORIES = {
+    MEDIA_TYPE_AUDIOBOOK: "13",
+    MEDIA_TYPE_EBOOK: "14",
+}
 
 APP_VERSION = os.getenv("APP_VERSION", "unknown")
 
@@ -57,6 +64,14 @@ def build_mam_cookie(raw: str) -> str:
         return f"mam_id={raw}"
     return raw
 
+def normalize_media_type(value: str | None) -> str:
+    media_type = (value or MEDIA_TYPE_AUDIOBOOK).strip().lower()
+    if media_type in ("audiobook", "audiobooks", "audio"):
+        return MEDIA_TYPE_AUDIOBOOK
+    if media_type in ("ebook", "ebooks", "e-book", "e-books"):
+        return MEDIA_TYPE_EBOOK
+    raise HTTPException(status_code=400, detail="media_type must be audiobook or ebook")
+
 class Settings:
     def __init__(self) -> None:
         self.reload()
@@ -80,6 +95,7 @@ class Settings:
         self.TRANSMISSION_LABEL = cfg.get("TRANSMISSION_LABEL") or os.getenv("TRANSMISSION_LABEL", "mam-audiofinder")
         self.DOWNLOADS_DIR = DOWNLOADS_DIR
         self.LIBRARY_DIR = LIBRARY_DIR
+        self.EBOOKS_DIR = EBOOKS_DIR
 
         self.UMASK = cfg.get("UMASK") or os.getenv("UMASK")
         auto_import_enabled = cfg["AUTO_IMPORT_ENABLED"] if "AUTO_IMPORT_ENABLED" in cfg else os.getenv("AUTO_IMPORT_ENABLED", "")
@@ -115,6 +131,7 @@ def ensure_history_schema() -> None:
               title    TEXT,
               author   TEXT,
               narrator TEXT,
+              media_type TEXT,
               dl       TEXT,
               added_at TEXT DEFAULT (datetime('now')),
               imported_at TEXT,
@@ -127,6 +144,13 @@ def ensure_history_schema() -> None:
             cx.execute(text("ALTER TABLE history ADD COLUMN status_detail TEXT"))
         if "status_updated_at" not in cols:
             cx.execute(text("ALTER TABLE history ADD COLUMN status_updated_at TEXT"))
+        if "media_type" not in cols:
+            cx.execute(text("ALTER TABLE history ADD COLUMN media_type TEXT"))
+        cx.execute(text("""
+            UPDATE history
+            SET media_type = 'audiobook'
+            WHERE media_type IS NULL OR trim(media_type) = ''
+        """))
         cx.execute(text("""
             UPDATE history
             SET torrent_status = 'added'
@@ -162,7 +186,7 @@ class SetupPayload(BaseModel):
     auto_import_enabled: bool | None = None
 
 # ---------------------------- App ----------------------------
-app = FastAPI(title="MAM Audiobook Finder", version=APP_VERSION)
+app = FastAPI(title="MAM Book Finder", version=APP_VERSION)
 app.state.auto_import_task = None
 app.state.auto_import_stop = None
 
@@ -239,13 +263,17 @@ async def search(payload: dict):
     if not settings.MAM_COOKIE:
         raise HTTPException(status_code=500, detail="MAM_COOKIE not set on server")
 
+    media_type = normalize_media_type(payload.get("media_type"))
     tor = payload.get("tor", {}) or {}
     tor.setdefault("text", "")
-    tor.setdefault("srchIn", ["title", "author", "narrator"])
+    if media_type == MEDIA_TYPE_EBOOK:
+        tor.setdefault("srchIn", ["title", "author"])
+    else:
+        tor.setdefault("srchIn", ["title", "author", "narrator"])
     tor.setdefault("searchType", "all")
     tor["sortType"] = "seedersDesc"
     tor.setdefault("startNumber", "0")
-    tor.setdefault("main_cat", ["13"])  # Audiobooks
+    tor["main_cat"] = [MAM_MAIN_CATEGORIES[media_type]]
 
     perpage = payload.get("perpage", 25)
     body = {"tor": tor, "perpage": perpage}
@@ -327,6 +355,7 @@ async def search(payload: dict):
             "catname": item.get("catname"),
             "added": item.get("added"),
             "dl": item.get("dl"),
+            "media_type": media_type,
             "is_freeleech": is_freeleech,
             "is_vip": is_vip,
         })
@@ -380,7 +409,15 @@ def torrent_hash_from_add_result(args: dict) -> str | None:
     torrent = args.get("torrent-added") or args.get("torrent-duplicate") or {}
     return torrent.get("hashString")
 
-def insert_history(mam_id: str, title: str, author: str, narrator: str, dl: str, torrent_hash: str | None):
+def insert_history(
+    mam_id: str,
+    title: str,
+    author: str,
+    narrator: str,
+    media_type: str,
+    dl: str,
+    torrent_hash: str | None,
+):
     added_at = utcnow_str()
     with engine.begin() as cx:
         cx.execute(text("""
@@ -389,6 +426,7 @@ def insert_history(mam_id: str, title: str, author: str, narrator: str, dl: str,
                 title,
                 author,
                 narrator,
+                media_type,
                 dl,
                 torrent_status,
                 torrent_hash,
@@ -401,6 +439,7 @@ def insert_history(mam_id: str, title: str, author: str, narrator: str, dl: str,
                 :title,
                 :author,
                 :narrator,
+                :media_type,
                 :dl,
                 :torrent_status,
                 :torrent_hash,
@@ -413,6 +452,7 @@ def insert_history(mam_id: str, title: str, author: str, narrator: str, dl: str,
             "title": title,
             "author": author,
             "narrator": narrator,
+            "media_type": normalize_media_type(media_type),
             "dl": dl,
             "torrent_status": "added",
             "torrent_hash": torrent_hash,
@@ -428,6 +468,7 @@ class AddBody(BaseModel):
     dl: str | None = None
     author: str | None = None
     narrator: str | None = None
+    media_type: str | None = None
 
 @app.post("/add")
 async def add_to_transmission(body: AddBody):
@@ -435,6 +476,7 @@ async def add_to_transmission(body: AddBody):
     title = (body.title or "").strip()
     author = (body.author or "").strip()
     narrator = (body.narrator or "").strip()
+    media_type = normalize_media_type(body.media_type)
     dl = (body.dl or "").strip()
 
     if not mam_id and not dl:
@@ -460,7 +502,7 @@ async def add_to_transmission(body: AddBody):
                     torrent_add_arguments(mam_id, "filename", direct_url),
                 )
                 torrent_hash = torrent_hash_from_add_result(args)
-                insert_history(mam_id, title, author, narrator, dl, torrent_hash)
+                insert_history(mam_id, title, author, narrator, media_type, dl, torrent_hash)
                 return {"ok": True}
             except HTTPException:
                 if not id_candidates:
@@ -492,7 +534,7 @@ async def add_to_transmission(body: AddBody):
             torrent_add_arguments(mam_id, "metainfo", metainfo),
         )
         torrent_hash = torrent_hash_from_add_result(args)
-        insert_history(mam_id, title, author, narrator, dl, torrent_hash)
+        insert_history(mam_id, title, author, narrator, media_type, dl, torrent_hash)
 
     return {"ok": True}
 
@@ -507,6 +549,7 @@ def history():
                 title,
                 author,
                 narrator,
+                media_type,
                 dl,
                 torrent_hash,
                 added_at,
@@ -668,12 +711,25 @@ def mark_history_failed(history_id: int | None, torrent_hash: str, detail: str):
                 WHERE torrent_hash = :torrent_hash
             """), {"ts": utcnow_str(), **params})
 
+def get_history_media_type(history_id: int | None) -> str | None:
+    if history_id is None:
+        return None
+    with engine.begin() as cx:
+        row = cx.execute(text("""
+            SELECT media_type
+            FROM history
+            WHERE id = :id
+        """), {"id": history_id}).mappings().first()
+    if not row:
+        return None
+    return normalize_media_type(row.get("media_type"))
+
 def get_auto_import_candidates(completed_hashes: set[str]) -> list[dict]:
     if not completed_hashes:
         return []
     with engine.begin() as cx:
         rows = cx.execute(text("""
-            SELECT id, title, author, torrent_hash, torrent_status
+            SELECT id, title, author, torrent_hash, torrent_status, media_type
             FROM history
             WHERE
                 torrent_hash IS NOT NULL
@@ -719,8 +775,10 @@ class ImportBody(BaseModel):
     title: str
     hash: str
     history_id: int | None = None
+    media_type: str | None = None
 
-async def import_torrent_to_library(author: str, title: str, h: str) -> str:
+async def import_torrent_to_library(author: str, title: str, h: str, media_type: str = MEDIA_TYPE_AUDIOBOOK) -> str:
+    media_type = normalize_media_type(media_type)
     author = sanitize(author)
     title = sanitize(title)
     # Query Transmission for files and download directory.
@@ -741,8 +799,8 @@ async def import_torrent_to_library(author: str, title: str, h: str) -> str:
 
     source_dir = Path(validate_download_path(download_dir))
 
-    # Destination: /library/Author/Title[/...]
-    lib = Path(settings.LIBRARY_DIR)
+    # Destination: /library/Author/Title or /ebooks/Author/Title.
+    lib = Path(settings.EBOOKS_DIR if media_type == MEDIA_TYPE_EBOOK else settings.LIBRARY_DIR)
     author_dir = lib / author
     author_dir.mkdir(parents=True, exist_ok=True)
     dest_dir = next_available(author_dir / title)
@@ -784,7 +842,8 @@ async def do_import(body: ImportBody):
         update_history_status(history_id, "importing")
 
     try:
-        dest = await import_torrent_to_library(body.author, body.title, body.hash)
+        media_type = get_history_media_type(history_id) or normalize_media_type(body.media_type)
+        dest = await import_torrent_to_library(body.author, body.title, body.hash, media_type)
     except HTTPException as exc:
         if history_id is not None:
             mark_history_failed(history_id, body.hash, str(exc.detail))
@@ -808,6 +867,12 @@ async def auto_import_cycle():
         author = (row.get("author") or "").strip()
         title = (row.get("title") or "").strip()
 
+        try:
+            media_type = normalize_media_type(row.get("media_type"))
+        except HTTPException as exc:
+            mark_history_failed(history_id, torrent_hash, str(exc.detail))
+            continue
+
         if not author or not title:
             mark_history_failed(history_id, torrent_hash, "History row is missing author/title; use manual import.")
             continue
@@ -815,7 +880,7 @@ async def auto_import_cycle():
         update_history_status(history_id, "importing")
 
         try:
-            await import_torrent_to_library(author, title, torrent_hash)
+            await import_torrent_to_library(author, title, torrent_hash, media_type)
         except HTTPException as exc:
             if is_transient_auto_import_error(exc):
                 update_history_status(history_id, "added")

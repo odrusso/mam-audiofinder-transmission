@@ -15,5 +15,6 @@ services:
       - ${DATA_DIR}:/data
       # Replace the host paths on the left before first run. Keep the in-container paths static.
       - /path/to/transmission-downloads:/downloads
-      - /path/to/audiobookshelf-library:/library
+      - /path/to/audiobook-library:/library
+      - /path/to/ebook-library:/ebooks
     restart: unless-stopped

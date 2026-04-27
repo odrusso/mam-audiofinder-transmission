@@ -1,6 +1,7 @@
 // ---------- DOM lookups ----------
 const form = document.getElementById('searchForm');
 const q = document.getElementById('q');
+const mediaTypeInputs = Array.from(document.querySelectorAll('input[name="mediaType"]'));
 const perpageSel = document.getElementById('perpage');
 const statusEl = document.getElementById('status');
 const table = document.getElementById('results');
@@ -26,6 +27,33 @@ function showHistoryCard() {
   historyCard.style.display = 'block';
 }
 
+function getSelectedMediaType() {
+  const selected = document.querySelector('input[name="mediaType"]:checked')?.value;
+  return selected === 'ebook' ? 'ebook' : 'audiobook';
+}
+
+function normalizeMediaType(value) {
+  return value === 'ebook' ? 'ebook' : 'audiobook';
+}
+
+function mediaTypeLabel(value) {
+  return normalizeMediaType(value) === 'ebook' ? 'Ebook' : 'Audiobook';
+}
+
+function renderMediaTypeBadge(value) {
+  return `<span class="type-badge">${escapeHtml(mediaTypeLabel(value))}</span>`;
+}
+
+function updateSearchPlaceholder() {
+  if (!q) return;
+  q.placeholder = getSelectedMediaType() === 'ebook'
+    ? 'Search title/author'
+    : 'Search title/author/narrator';
+}
+
+mediaTypeInputs.forEach((input) => input.addEventListener('change', updateSearchPlaceholder));
+updateSearchPlaceholder();
+
 // Focus the search box on devices where it will not pop open a touch keyboard.
 if (q && window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) q.focus();
 
@@ -49,6 +77,7 @@ if (form) {
 // ---------- Search flow ----------
 async function runSearch() {
   const text = (q?.value || '').trim();
+  const mediaType = getSelectedMediaType();
   const perpage = parseInt(perpageSel?.value || '25', 10);
 
   statusEl.textContent = 'Searching...';
@@ -59,7 +88,7 @@ async function runSearch() {
     const data = await fetchJson('/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tor: { text }, perpage })
+      body: JSON.stringify({ media_type: mediaType, tor: { text }, perpage })
     });
 
     const rows = data.results || [];
@@ -86,7 +115,8 @@ async function runSearch() {
               title: it.title || '',
               dl: it.dl || '',
               author: it.author_info || '',
-              narrator: it.narrator_info || ''
+              narrator: it.narrator_info || '',
+              media_type: it.media_type || mediaType
             })
           });
           cachedTorrents = null;
@@ -256,10 +286,14 @@ async function openImportPanel(historyItem, row) {
   }
 
   activeImportHistoryId = historyItem.id;
+  const mediaType = normalizeMediaType(historyItem.media_type);
+  const destinationRoot = mediaType === 'ebook' ? '/ebooks' : '/library';
+  const importButtonLabel = mediaType === 'ebook' ? 'Copy to Ebooks' : 'Copy to Library';
   importCell.innerHTML = `
     <div class="import-form import-panel">
       <div class="import-panel-row">
         <span>Import:</span>
+        <span>${escapeHtml(destinationRoot)}</span>
         <span>/</span>
         <input type="text" class="imp-author" placeholder="Author" value="${escapeHtml(historyItem.author || '')}" style="min-width:220px;">
         <span>/</span>
@@ -268,7 +302,7 @@ async function openImportPanel(historyItem, row) {
         <select class="imp-torrent" style="min-width:320px;">
           <option disabled selected>Loading torrents...</option>
         </select>
-        <button class="imp-go">Copy to Library</button>
+        <button class="imp-go">${escapeHtml(importButtonLabel)}</button>
       </div>
       <div class="imp-status"></div>
     </div>
@@ -330,7 +364,8 @@ async function openImportPanel(historyItem, row) {
           author,
           title,
           hash,
-          history_id: historyItem.id
+          history_id: historyItem.id,
+          media_type: mediaType
         })
       });
 
@@ -339,12 +374,12 @@ async function openImportPanel(historyItem, row) {
       status.textContent = `Done -> ${result.dest}`;
       goBtn.textContent = 'Imported';
 
-      const statusTd = row.children[5];
+      const statusTd = row.children[6];
       if (statusTd) statusTd.innerHTML = renderHistoryStatusCell({ torrent_status: 'imported' });
     } catch (e) {
       console.error(e);
       status.textContent = `Failed: ${e.message}`;
-      const statusTd = row.children[5];
+      const statusTd = row.children[6];
       if (statusTd) {
         statusTd.innerHTML = renderHistoryStatusCell({
           torrent_status: 'import_failed',
@@ -373,6 +408,7 @@ async function loadHistory() {
       const tr = document.createElement('tr');
       const when = item.added_at ? new Date(item.added_at.replace(' ', 'T') + 'Z').toLocaleString() : '';
       const linkURL = item.mam_id ? `https://www.myanonamouse.net/t/${encodeURIComponent(item.mam_id)}` : '';
+      const mediaType = normalizeMediaType(item.media_type);
 
       const importBtn = document.createElement('button');
       importBtn.textContent = item.torrent_status === 'importing' ? 'Importing...' : 'Import';
@@ -397,6 +433,7 @@ async function loadHistory() {
       });
 
       tr.innerHTML = `
+        <td>${renderMediaTypeBadge(mediaType)}</td>
         <td>${escapeHtml(item.title || '')}</td>
         <td>${escapeHtml(item.author || '')}</td>
         <td>${escapeHtml(item.narrator || '')}</td>
@@ -408,8 +445,8 @@ async function loadHistory() {
       `;
 
       applyDataLabels(historyTable, tr);
-      tr.children[6].appendChild(importBtn);
-      tr.children[7].appendChild(removeBtn);
+      tr.children[7].appendChild(importBtn);
+      tr.children[8].appendChild(removeBtn);
       historyBody.appendChild(tr);
     });
 

@@ -1,6 +1,6 @@
-# MAM Audiobook Finder
+# MAM Book Finder
 
-A lightweight web app + API to quickly search MyAnonamouse for audiobooks, add them to Transmission, and import completed downloads into your [Audiobookshelf](https://www.audiobookshelf.org/) library.
+A lightweight web app + API to quickly search MyAnonamouse for audiobooks or ebooks, add them to Transmission, and import completed downloads into separate audiobook and ebook libraries.
 
 ![Search](/app/static/screenshots/search.png)
 ![Import](/app/static/screenshots/import.png)
@@ -8,10 +8,10 @@ A lightweight web app + API to quickly search MyAnonamouse for audiobooks, add t
 
 ## Features
 
-- **Search MAM** by title, author, or narrator  
+- **Search MAM** for audiobooks or ebooks by title and author, with narrator search for audiobooks
 - **One-click add to Transmission** (with its own label)
 - **History view** of all books you've added  
-- **Inline import tool** to copy completed downloads into your Audiobookshelf library
+- **Inline import tool** to copy completed downloads into your audiobook or ebook library
 - Minimal, fast UI that works on desktop and mobile
 - ZERO AUTHENTICATION (*Please* don't put this on the open internet. Tailscale or a Cloudflare Tunnel with Cloudflare Access might be good options.)
 - Spouse tested and approved
@@ -45,7 +45,8 @@ The checked-in `docker-compose.yml` supports both local source builds and the pu
 3. Create the host state directory from `DATA_DIR` and make sure it is writable by `PUID:PGID`.
 4. Edit the `volumes` section in `docker-compose.yml` so your host storage is mounted at the app's static in-container paths. Replace the placeholder paths on the left before starting:
    - Transmission downloads at `/downloads`
-   - Audiobookshelf library at `/library`
+   - Audiobook library at `/library`
+   - Ebook library at `/ebooks`
 5. If Transmission runs in Docker, mount the same host downloads directory into the Transmission container too, so Transmission reports completed downloads under `/downloads`.
 6. Start the container with Docker Compose:
    ```bash
@@ -109,9 +110,10 @@ Setup-backed values, also supported as env fallbacks:
 The app uses fixed in-container paths and does not read path settings from env or setup:
 
 - `/downloads` for Transmission downloads
-- `/library` for the Audiobookshelf library
+- `/library` for the audiobook library
+- `/ebooks` for the ebook library
 
-This app expects Transmission's completed downloads to be visible at `/downloads`. Configure Transmission's default download directory and mounts so it reports paths under `/downloads`. Imports always copy files from `/downloads` into `/library`.
+This app expects Transmission's completed downloads to be visible at `/downloads`. Configure Transmission's default download directory and mounts so it reports paths under `/downloads`. Audiobook imports copy files from `/downloads` into `/library`; ebook imports copy files from `/downloads` into `/ebooks`.
 
 ### 1. Single media root
 
@@ -120,7 +122,8 @@ If your downloads and library live under a common parent, mount each subdirector
 Example host layout:
 
 - Transmission downloads: `/mnt/media/torrents`
-- Audiobookshelf: `/mnt/media/audiobookshelf`
+- Audiobooks: `/mnt/media/audiobookshelf`
+- Ebooks: `/mnt/media/ebooks`
 
 `docker-compose.yml`:
 
@@ -129,6 +132,7 @@ volumes:
   - ${DATA_DIR}:/data
   - /mnt/media/torrents:/downloads
   - /mnt/media/audiobookshelf:/library
+  - /mnt/media/ebooks:/ebooks
 ```
 
 ### 2. Separate mounts (downloads and library on different paths)
@@ -138,7 +142,8 @@ If your downloads and library are on different host paths, still keep the in-con
 Example host layout:
 
 - Transmission downloads: `/mnt/disk1/torrents`
-- Audiobookshelf: `/mnt/disk2/audiobooks`
+- Audiobooks: `/mnt/disk2/audiobooks`
+- Ebooks: `/mnt/disk3/ebooks`
 
 `docker-compose.yml` (adjust or override the `volumes` section):
 
@@ -147,6 +152,7 @@ volumes:
   - ${DATA_DIR}:/data
   - /mnt/disk1/torrents:/downloads
   - /mnt/disk2/audiobooks:/library
+  - /mnt/disk3/ebooks:/ebooks
 ```
 
 ## Versioning and releases

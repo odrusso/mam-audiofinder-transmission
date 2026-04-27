@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}MAM Audiobook Finder - Setup{% endblock %}
+{% block title %}MAM Book Finder - Setup{% endblock %}
 
 {% block head %}
   <style>
@@ -50,13 +50,13 @@
 
 {% block body %}
   <header>
-    <img src="/static/logo.png" alt="Audiobook Finder logo" class="logo" />
-    <h1><a href="/" class="title-link">Audiobook Finder - Setup</a></h1>
+    <img src="/static/logo.png" alt="Book Finder logo" class="logo" />
+    <h1><a href="/" class="title-link">Book Finder - Setup</a></h1>
   </header>
 
   <div class="card">
     <p class="muted">
-      Connect to MyAnonamouse and Transmission. Docker Compose should mount downloads at <code>/downloads</code> and the Audiobookshelf library at <code>/library</code>.
+      Connect to MyAnonamouse and Transmission. Docker Compose should mount downloads at <code>/downloads</code>, audiobooks at <code>/library</code>, and ebooks at <code>/ebooks</code>.
     </p>
 
     <form id="setupForm">
@@ -92,7 +92,7 @@
         <label for="auto_import_enabled">Auto-import completed torrents</label>
         <label class="checkbox-row">
           <input id="auto_import_enabled" name="auto_import_enabled" type="checkbox" {% if auto_import_enabled %}checked{% endif %} />
-          <span>Automatically copy completed labeled torrents into <code>/library</code>.</span>
+          <span>Automatically copy completed labeled torrents into <code>/library</code> or <code>/ebooks</code>.</span>
         </label>
         <small>Uses the saved history author/title for the destination path. Failed auto-imports are left in history for manual retry.</small>
       </div>
