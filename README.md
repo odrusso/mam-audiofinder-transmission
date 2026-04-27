@@ -1,169 +1,63 @@
 # MAM Book Finder
 
-A lightweight web app + API to quickly search MyAnonamouse for audiobooks or ebooks, add them to Transmission, and automatically sync completed downloads into separate audiobook and ebook libraries.
+Lightweight web app and API for searching MyAnonamouse, sending downloads to Transmission, and copying completed books into audiobook and ebook libraries.
 
-![Search](/app/static/screenshots/search.png)
-## Features
+## Screenshots
 
-- **Search MAM** for audiobooks or ebooks by title and author, with narrator search for audiobooks
-- **One-click add to Transmission** (with its own label)
-- **History view** of all books you've added  
-- **Background sync** that copies completed downloads into your audiobook or ebook library
-- Minimal, fast UI that works on desktop and mobile
-- ZERO AUTHENTICATION (*Please* don't put this on the open internet. Tailscale or a Cloudflare Tunnel with Cloudflare Access might be good options.)
-- Spouse tested and approved
+| Desktop | Mobile |
+| --- | --- |
+| ![Desktop screenshot](app/static/screenshots/finder_desktop.png) | ![Mobile screenshot](app/static/screenshots/finder_mobile.png) |
+
+## What It Does
+
+- Search MAM for audiobooks and ebooks
+- Add torrents to Transmission with a dedicated label
+- Track download history
+- Auto-import completed downloads into `/library` or `/ebooks`
 
 ## Requirements
 
-- Transmission with RPC enabled and label support
-- A valid MAM session cookie set in `docker-compose.yml` or your compose environment
-- Docker & Docker Compose
-
-## Because You'll Ask
-
-***Why build this*** instead of using Readarr or one of its revivals, forks, or related projects?
-- This uses the MAM API directly, not just for finding books but also for metadata. It doesn't rely on any other systems or databases. This is great for me because when a book shows up in my search results I KNOW I can download it, and I know the metadata like narrator and format will be accurate.
-- I wanted something I could use from my phone that would be as fast as I could make it. This is very fast.
-- This also keeps things dead simple. There's no queue, no requests, no ranking of multiple sources, no usenet, no RSS. Just search, download, and sync to library.
-
+- Docker and Docker Compose
+- Transmission with RPC enabled
+- A valid MAM session cookie
+- Mounted host paths for `/data`, `/downloads`, `/library`, and `/ebooks`
 
 ## Quick Start
 
-The checked-in `docker-compose.yml` supports both local source builds and the published GHCR image. The simplest first boot from a local checkout is:
+1. Set your MAM and Transmission settings in `docker-compose.yml`.
+2. Mount your host storage to the in-container paths:
+   - `/data` for the SQLite database
+   - `/downloads` for Transmission downloads
+   - `/library` for audiobooks
+   - `/ebooks` for ebooks
+3. Start the app:
 
-1. Clone this repository and `cd` into it:
-   ```bash
-   git clone https://github.com/odrusso/mam-audiofinder-transmission.git
-   cd mam-audiofinder-transmission
-   ```
-2. Edit `docker-compose.yml` so the app environment points at your MAM and Transmission settings:
-   - `MAM_COOKIE`
-   - `TRANSMISSION_URL`, `TRANSMISSION_USER`, `TRANSMISSION_PASS`
-   - Optional `AUTO_IMPORT_ENABLED`
-3. Create the host state directory at `./data` and make sure it exists before first start.
-4. Edit the `volumes` section in `docker-compose.yml` so your host storage is mounted at the app's static in-container paths. Replace the placeholder paths on the left before starting:
-   - Transmission downloads at `/downloads`
-   - Audiobook library at `/library`
-   - Ebook library at `/ebooks`
-5. If Transmission runs in Docker, mount the same host downloads directory into the Transmission container too, so Transmission reports completed downloads under `/downloads`.
-6. Start the container with Docker Compose:
    ```bash
    docker compose up -d --build
    ```
-7. Visit [http://localhost:8080](http://localhost:8080). The app starts directly in the main UI, and the compose file carries the fixed defaults plus the runtime secrets you set.
 
-If you want to use the published GHCR image instead of building locally, authenticate first if the package is private, then pull and start:
+4. Open the UI at `http://localhost:8080`.
 
-```bash
-echo "$GHCR_PAT" | docker login ghcr.io -u <github-username> --password-stdin
-docker compose pull
-docker compose up -d
-```
+If you use Transmission in Docker, mount the same host downloads directory there too so completed paths resolve under `/downloads`.
 
-By default Compose uses `IMAGE_TAG=latest`. To pin a specific published release, set `IMAGE_TAG` in `.env`, for example:
+## Configuration
 
-```bash
-IMAGE_TAG=0.3.0
-```
+Runtime config comes from environment variables in `docker-compose.yml`.
 
-To confirm the app is running, open the UI or check the health endpoint on your chosen app port:
-
-```bash
-curl http://localhost:8008/health
-```
-
-The health response includes the running app version.
-
-## Environment Variables
-
-The app uses `docker-compose.yml` for the live secrets and toggles. The fixed defaults are hard-coded.
-
-Live values:
-
-| Variable    | Description                                              |
-|-------------|----------------------------------------------------------|
-| `IMAGE_TAG` | Published GHCR image tag for Compose pulls, default `latest` |
-
-App settings:
-
-| Variable            | Description                                                              |
-|---------------------|--------------------------------------------------------------------------|
-| `MAM_COOKIE`        | Your MAM session cookie (use ASN-locked cookie)                         |
-| `TRANSMISSION_URL`  | Transmission RPC URL (e.g. `http://transmission:9091/transmission/rpc`) |
-| `TRANSMISSION_USER` | Transmission RPC username, if auth is enabled                           |
-| `TRANSMISSION_PASS` | Transmission RPC password, if auth is enabled                           |
-| `AUTO_IMPORT_ENABLED` | Enable the background auto-import loop                                 |
-
-## Storage configuration examples
-
-The app uses fixed in-container paths and does not read path settings from env:
-
-- `/downloads` for Transmission downloads
-- `/library` for the audiobook library
-- `/ebooks` for the ebook library
-
-This app expects Transmission's completed downloads to be visible at `/downloads`. Configure Transmission's default download directory and mounts so it reports paths under `/downloads`. Audiobook imports copy files from `/downloads` into `/library`; ebook imports copy files from `/downloads` into `/ebooks`.
-
-### 1. Single media root
-
-If your downloads and library live under a common parent, mount each subdirectory to the static app path.
-
-Example host layout:
-
-- Transmission downloads: `/mnt/media/torrents`
-- Audiobooks: `/mnt/media/audiobookshelf`
-- Ebooks: `/mnt/media/ebooks`
-
-`docker-compose.yml`:
-
-```yaml
-volumes:
-  - ./data:/data
-  - /mnt/media/torrents:/downloads
-  - /mnt/media/audiobookshelf:/library
-  - /mnt/media/ebooks:/ebooks
-```
-
-### 2. Separate mounts (downloads and library on different paths)
-
-If your downloads and library are on different host paths, still keep the in-container paths static.
-
-Example host layout:
-
-- Transmission downloads: `/mnt/disk1/torrents`
-- Audiobooks: `/mnt/disk2/audiobooks`
-- Ebooks: `/mnt/disk3/ebooks`
-
-`docker-compose.yml` (adjust or override the `volumes` section):
-
-```yaml
-volumes:
-  - ./data:/data
-  - /mnt/disk1/torrents:/downloads
-  - /mnt/disk2/audiobooks:/library
-  - /mnt/disk3/ebooks:/ebooks
-```
-
-## Versioning and releases
-
-The app version is not stored in source. GitHub Actions generates it when code is pushed to the default branch.
-
-On each push to `main` or `master`, the publish workflow finds the latest stable `vX.Y.Z` git tag, increments the patch number, creates the next tag on that commit, and builds the image with that generated version. If no stable release tags exist yet, the first release is `0.0.1`.
-
-The GHCR workflow publishes these image tags:
-
-- `latest` for the default branch build
-- `main` or `master` for the branch ref
-- `sha-<commit>` for commit-pinned deploys
-- `vX.Y.Z`, `X.Y.Z`, and `X.Y` for release tags
-
-Published images receive `APP_VERSION` at build time. Local source runs that were not built by CI report `unknown`.
+| Variable | Purpose |
+| --- | --- |
+| `MAM_COOKIE` | MAM session cookie |
+| `TRANSMISSION_URL` | Transmission RPC URL |
+| `TRANSMISSION_USER` | Transmission RPC username |
+| `TRANSMISSION_PASS` | Transmission RPC password |
 
 
-This project was created to scratch a personal itch, and was almost entirely vibe-coded with OpenAI Codex. I will probably not be developing it further, looking at issues, or accepting pull requests.
-Do not run this on the open internet! 
-Are you a *real* developer? Do you want to fork or rewrite this project and make it not suck? Go for it!
+## Notes
+
+- Search, add, and history are available from the main UI.
+- The app has no authentication, so do not expose it directly to the public internet.
+- Health check: `GET /health`
 
 ## License
 
-MIT — provided as-is, no warranty.
+MIT
