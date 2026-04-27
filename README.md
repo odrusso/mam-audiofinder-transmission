@@ -56,7 +56,6 @@ Runtime config comes from environment variables in `docker-compose.yml`.
 
 - Search, add, and history are available from the main UI.
 - The app has no authentication, so do not expose it directly to the public internet.
-- Health check: `GET /health`
 
 ## License
 
